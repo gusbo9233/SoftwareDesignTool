@@ -1,0 +1,144 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}{{ "Edit" if document else "New" }} Domain Model - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ "Edit" if document else "New" }} Domain Model</span>
+{% endblock %}
+
+{% block project_content %}
+<h1>{{ "Edit" if document else "New" }} Domain Model</h1>
+
+<form method="POST" class="form form-wide">
+    <fieldset>
+        <legend>Bounded Context</legend>
+        <div class="form-group">
+            <label for="bounded_context_name">Context Name</label>
+            <input type="text" id="bounded_context_name" name="bounded_context_name" value="{{ data.get('bounded_context_name', '') }}" placeholder="Name of this bounded context" required>
+        </div>
+        <div class="form-group">
+            <label for="bounded_context_description">Description</label>
+            <textarea id="bounded_context_description" name="bounded_context_description" rows="3" placeholder="What is inside and outside this context">{{ data.get('bounded_context_description', '') }}</textarea>
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Major Entities</legend>
+        <table class="data-table" id="entities-table">
+            <thead>
+                <tr><th>Name</th><th>Description</th><th>Key Attributes</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for entity in data.get('entities', [{}]) %}
+                <tr>
+                    <td><input type="text" name="entity_name" value="{{ entity.get('name', '') }}" placeholder="Entity name"></td>
+                    <td><input type="text" name="entity_description" value="{{ entity.get('description', '') }}" placeholder="What it represents"></td>
+                    <td><input type="text" name="entity_key_attributes" value="{{ entity.get('key_attributes', '') }}" placeholder="id, name, ..."></td>
+                    <td><button type="button" class="btn btn-small btn-danger" onclick="this.closest('tr').remove()">Remove</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-small" onclick="addTableRow('entities-table', entityRowTemplate)">+ Add Entity</button>
+    </fieldset>
+
+    <fieldset>
+        <legend>Domain Language (Ubiquitous Language)</legend>
+        <table class="data-table" id="glossary-table">
+            <thead>
+                <tr><th>Term</th><th>Definition</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for term in data.get('glossary', [{}]) %}
+                <tr>
+                    <td><input type="text" name="glossary_term" value="{{ term.get('term', '') }}" placeholder="Term"></td>
+                    <td><input type="text" name="glossary_definition" value="{{ term.get('definition', '') }}" placeholder="Definition"></td>
+                    <td><button type="button" class="btn btn-small btn-danger" onclick="this.closest('tr').remove()">Remove</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-small" onclick="addTableRow('glossary-table', glossaryRowTemplate)">+ Add Term</button>
+    </fieldset>
+
+    <fieldset>
+        <legend>Business Rules</legend>
+        <div id="rules-list">
+            {% for rule in data.get('business_rules', ['']) %}
+            <div class="repeatable-row">
+                <input type="text" name="business_rules" value="{{ rule }}" placeholder="Business rule or invariant">
+                <button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">Remove</button>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" class="btn btn-small" onclick="addRow('rules-list', 'business_rules', 'Business rule or invariant')">+ Add Rule</button>
+    </fieldset>
+
+    <fieldset>
+        <legend>External Systems</legend>
+        <table class="data-table" id="ext-systems-table">
+            <thead>
+                <tr><th>System Name</th><th>Type</th><th>Integration Description</th><th>Owner</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for sys in data.get('external_systems', [{}]) %}
+                <tr>
+                    <td><input type="text" name="ext_name" value="{{ sys.get('name', '') }}" placeholder="System name"></td>
+                    <td><input type="text" name="ext_type" value="{{ sys.get('system_type', '') }}" placeholder="e.g. REST API, DB"></td>
+                    <td><input type="text" name="ext_integration_description" value="{{ sys.get('integration_description', '') }}" placeholder="How integrated"></td>
+                    <td><input type="text" name="ext_owner" value="{{ sys.get('owner', '') }}" placeholder="Owner team"></td>
+                    <td><button type="button" class="btn btn-small btn-danger" onclick="this.closest('tr').remove()">Remove</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-small" onclick="addTableRow('ext-systems-table', extSystemRowTemplate)">+ Add External System</button>
+    </fieldset>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ "Update" if document else "Create" }}</button>
+        <a href="{{ url_for('documents.index', project_id=project.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+
+<script>
+function addRow(listId, name, placeholder) {
+    const list = document.getElementById(listId);
+    const row = document.createElement('div');
+    row.className = 'repeatable-row';
+    row.innerHTML = '<input type="text" name="' + name + '" placeholder="' + placeholder + '">' +
+        '<button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">Remove</button>';
+    list.appendChild(row);
+}
+
+function addTableRow(tableId, template) {
+    const tbody = document.querySelector('#' + tableId + ' tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = template;
+    tbody.appendChild(tr);
+}
+
+const entityRowTemplate =
+    '<td><input type="text" name="entity_name" placeholder="Entity name"></td>' +
+    '<td><input type="text" name="entity_description" placeholder="What it represents"></td>' +
+    '<td><input type="text" name="entity_key_attributes" placeholder="id, name, ..."></td>' +
+    '<td><button type="button" class="btn btn-small btn-danger" onclick="this.closest(\'tr\').remove()">Remove</button></td>';
+
+const glossaryRowTemplate =
+    '<td><input type="text" name="glossary_term" placeholder="Term"></td>' +
+    '<td><input type="text" name="glossary_definition" placeholder="Definition"></td>' +
+    '<td><button type="button" class="btn btn-small btn-danger" onclick="this.closest(\'tr\').remove()">Remove</button></td>';
+
+const extSystemRowTemplate =
+    '<td><input type="text" name="ext_name" placeholder="System name"></td>' +
+    '<td><input type="text" name="ext_type" placeholder="e.g. REST API, DB"></td>' +
+    '<td><input type="text" name="ext_integration_description" placeholder="How integrated"></td>' +
+    '<td><input type="text" name="ext_owner" placeholder="Owner team"></td>' +
+    '<td><button type="button" class="btn btn-small btn-danger" onclick="this.closest(\'tr\').remove()">Remove</button></td>';
+</script>
+{% endblock %}

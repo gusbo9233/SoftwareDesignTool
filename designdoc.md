@@ -16,10 +16,20 @@ The tool manages two categories of design artifacts:
 1. **Structured Documents** — Fixed-format templates that enforce consistent structure. The user fills in predefined fields rather than writing free-form text. Includes:
    - Project Plan
    - Test Plan
-   - Requirements (functional & non-functional)
+   - Requirements (functional)
+   - Non-Functional Requirements
    - User Stories
+   - Architecture Decision Records (ADR)
+   - Technology Stack
+   - Risk Register
+   - System Context / Domain Model
+   - Acceptance Test Specifications
+   - External Resources
 
-2. **Diagrams** — Free-form visual artifacts created via a node-edge canvas. Includes:
+2. **Free-Text Documents** — Unstructured documents for open-ended writing. Includes:
+   - Research Documents
+
+3. **Diagrams** — Free-form visual artifacts created via a node-edge canvas. Includes:
    - System architecture diagrams
    - UML diagrams (class, sequence, component)
    - Entity-relationship diagrams
@@ -158,6 +168,120 @@ Fixed sections:
 - **Entry/Exit Criteria** — Conditions to start/complete testing
 - **Environment** — Required setup and dependencies
 
+#### 5.2.5 Architecture Decision Records (ADR)
+
+Structured record of a significant design or technology decision.
+
+| Field | Description |
+|---|---|
+| ID | Auto-generated identifier (e.g., ADR-001) |
+| Title | Short name for the decision |
+| Status | Proposed / Accepted / Deprecated / Superseded |
+| Context | Why this decision was needed; forces at play |
+| Decision | What was decided |
+| Alternatives Considered | List of alternatives with brief pros/cons per entry |
+| Consequences | Positive and negative outcomes of the decision |
+| Related ADRs | References to superseding or related ADR IDs |
+
+#### 5.2.6 Technology Stack
+
+One row per technology in use; collectively describes the full stack.
+
+| Field | Description |
+|---|---|
+| ID | Auto-generated identifier (e.g., TECH-001) |
+| Category | Frontend / Backend / Database / Infrastructure / Testing / Other |
+| Technology | Name (e.g., "Flask", "PostgreSQL") |
+| Version | Pinned version or range |
+| Rationale | Why this technology was chosen |
+| Alternatives Considered | What was evaluated but rejected |
+| ADR Reference | Optional link to the ADR that records the decision |
+
+#### 5.2.7 Non-Functional Requirements
+
+Dedicated table for NFRs. Kept separate from functional requirements because they drive architecture and often have distinct owners and review cycles.
+
+| Field | Description |
+|---|---|
+| ID | Auto-generated identifier (e.g., NFR-001) |
+| Title | Short name |
+| Category | Performance / Security / Reliability / Scalability / Privacy / Compliance / Usability |
+| Description | Measurable statement of the requirement |
+| Rationale | Why this NFR exists |
+| Priority | Must / Should / Could / Won't (MoSCoW) |
+| Status | Draft / Approved / Verified |
+| Verification Method | How compliance is measured or tested |
+
+#### 5.2.8 Risk Register
+
+First-class document for tracking project and technical risks independently from the Project Plan.
+
+| Field | Description |
+|---|---|
+| ID | Auto-generated identifier (e.g., RISK-001) |
+| Title | Short name |
+| Description | Full description of the risk |
+| Category | Technical / Business / Resource / External |
+| Likelihood | High / Medium / Low |
+| Impact | High / Medium / Low |
+| Status | Open / Mitigating / Accepted / Closed |
+| Owner | Person or role responsible |
+| Mitigation | Actions taken or planned |
+| Review Date | Next scheduled review |
+| Notes | Free-text notes |
+
+#### 5.2.9 System Context / Domain Model
+
+Prose + structured hybrid that captures the bounded context, domain language, and external integrations in one place.
+
+Fixed sections:
+- **Bounded Context Name & Description** — what is inside and outside this context
+- **Major Entities** — table: Name, Description, Key Attributes
+- **Domain Language** (Ubiquitous Language) — glossary table: Term, Definition
+- **Business Rules** — numbered list of invariants and constraints
+- **External Systems** — table: System Name, Type, Integration Description, Owner
+
+#### 5.2.10 Acceptance Test Specifications
+
+Executable acceptance criteria with direct traceability to requirements and user stories. More granular than the Test Plan.
+
+| Field | Description |
+|---|---|
+| ID | Auto-generated identifier (e.g., ATS-001) |
+| Title | Short scenario name |
+| Requirement Reference | FK to a Requirement ID (optional) |
+| User Story Reference | FK to a User Story ID (optional) |
+| Preconditions | State required before executing the test |
+| Steps | Ordered list of actions |
+| Expected Result | Observable outcome that constitutes a pass |
+| Status | Draft / Approved / Pass / Fail / Blocked |
+| Notes | Free-text notes |
+
+#### 5.2.11 External Resources
+
+Catalogue of external dependencies — APIs, SDKs, services, documentation — that the system integrates with or relies on.
+
+| Field | Description |
+|---|---|
+| ID | Auto-generated identifier (e.g., EXT-001) |
+| Name | Name of the external resource |
+| Type | API / SDK / Service / Library / Documentation |
+| URL | Primary reference URL |
+| Description | What the resource provides and how it is used |
+| Authentication | None / API Key / OAuth / Other |
+| Notes | Rate limits, licensing, or other constraints |
+
+#### 5.2.12 Research Documents
+
+Unstructured freetext documents for capturing investigations, spikes, literature reviews, and exploratory notes. No fixed schema — title + Markdown body only.
+
+| Field | Description |
+|---|---|
+| Title | Document title |
+| Body | Freetext content (Markdown) |
+| Tags | Optional comma-separated tags |
+| Created At | Timestamp |
+
 ---
 
 ### 5.3 Diagram Editor
@@ -214,7 +338,7 @@ Fields per endpoint:
 |---|---|
 | id | UUID (PK) |
 | project_id | UUID (FK → Project) |
-| type | Enum: user_story, requirement, project_plan, test_plan |
+| type | Enum: user_story, requirement, nfr, project_plan, test_plan, adr, tech_stack, risk_register, domain_model, acceptance_test, external_resource, research |
 | data | JSON (schema varies by type) |
 | created_at | DateTime |
 | updated_at | DateTime |
@@ -240,6 +364,16 @@ Fields per endpoint:
 | description | Text |
 | request_schema | JSON |
 | response_schema | JSON |
+
+#### RequirementTestLink
+Traceability table connecting requirements and user stories to acceptance test specifications.
+
+| Column | Type |
+|---|---|
+| id | UUID (PK) |
+| requirement_id | UUID (FK → Document, nullable) |
+| user_story_id | UUID (FK → Document, nullable) |
+| acceptance_test_id | UUID (FK → Document) |
 
 ---
 
@@ -409,8 +543,27 @@ A single JSON (or Markdown) file per project containing all artifacts in a machi
   "requirements": [
     { "id": "REQ-001", "title": "...", "type": "functional", "priority": "must", "description": "..." }
   ],
+  "nfrs": [
+    { "id": "NFR-001", "title": "...", "category": "performance", "description": "...", "verification_method": "..." }
+  ],
   "user_stories": [
     { "id": "US-001", "as_a": "developer", "i_want_to": "...", "so_that": "...", "acceptance_criteria": ["..."] }
+  ],
+  "adrs": [
+    { "id": "ADR-001", "title": "...", "status": "accepted", "context": "...", "decision": "...", "consequences": "..." }
+  ],
+  "tech_stack": [
+    { "id": "TECH-001", "category": "backend", "technology": "Flask", "version": "3.x", "rationale": "..." }
+  ],
+  "risk_register": [
+    { "id": "RISK-001", "title": "...", "category": "technical", "likelihood": "medium", "impact": "high", "status": "open", "mitigation": "..." }
+  ],
+  "domain_model": { "bounded_context": "...", "entities": ["..."], "business_rules": ["..."], "external_systems": ["..."] },
+  "acceptance_tests": [
+    { "id": "ATS-001", "title": "...", "requirement_id": "REQ-001", "steps": ["..."], "expected_result": "..." }
+  ],
+  "external_resources": [
+    { "id": "EXT-001", "name": "...", "type": "api", "url": "...", "description": "..." }
   ],
   "project_plan": { "goals": ["..."], "milestones": ["..."] },
   "test_plan": { "test_cases": ["..."] },
@@ -419,6 +572,9 @@ A single JSON (or Markdown) file per project containing all artifacts in a machi
   ],
   "api_endpoints": [
     { "path": "/api/users", "method": "GET", "description": "...", "response_schema": {} }
+  ],
+  "traceability": [
+    { "requirement_id": "REQ-001", "acceptance_test_ids": ["ATS-001"] }
   ]
 }
 ```
@@ -514,6 +670,23 @@ This roadmap is written for **AI coding agents**. Each phase is a self-contained
 4. Add "Export for LLM" button to project overview UI
 5. Write tests validating export output structure
 
+### Phase 7 — Extended Document Types & Traceability
+
+Implements all document types identified in the second design review. Builds on the editor infrastructure from Phase 2.
+
+1. Implement **Architecture Decision Record (ADR)** editor: form UI with fields for status, context, decision, alternatives (repeating group), consequences, and related-ADR references. CRUD API, Jinja template.
+2. Implement **Technology Stack** editor: table-based UI with fields for category, technology, version, rationale, alternatives, and optional ADR reference. CRUD API, Jinja template.
+3. Implement **Non-Functional Requirements** editor: table-based UI, same structure as functional requirements but category is drawn from the NFR category enum (Performance, Security, Reliability, Scalability, Privacy, Compliance, Usability). Verification method field added. CRUD API, Jinja template.
+4. Implement **Risk Register** editor: table-based UI with fields for category, likelihood, impact, status, owner, mitigation, and review date. CRUD API, Jinja template.
+5. Implement **System Context / Domain Model** editor: section-based form with subsections for bounded context description, entities table, ubiquitous language glossary, business rules list, and external systems table. CRUD API, Jinja template.
+6. Implement **Acceptance Test Specification** editor: table-based UI with fields for preconditions, ordered steps (repeating group), expected result, status, and optional FK references to requirement IDs and user story IDs. CRUD API, Jinja template.
+7. Implement **External Resources** editor: table-based UI with fields for type, URL, description, and authentication method. CRUD API, Jinja template.
+8. Implement **Research Documents** editor: title + Markdown body + tags. Freetext (no fixed schema). CRUD API, Jinja template.
+9. Create `RequirementTestLink` ORM model and migration. Implement link management UI on the Acceptance Test Specification editor (pick-list to associate one or more requirement or user story IDs). Add corresponding read-only traceability panel on the Requirements and User Stories editors showing linked acceptance tests.
+10. Add Pydantic schemas for all new document types.
+11. Extend `ExportService` to include all new document types in the LLM export output.
+12. Write unit tests for CRUD operations and Pydantic validation for each new document type. Write an integration test for the traceability link (create requirement → create acceptance test → link them → verify export includes the link).
+
 ### Phase 6 — Polish & Integration
 
 1. Implement dashboard page listing all projects
@@ -531,7 +704,9 @@ This system provides a modular, server-rendered software design platform that co
 
 - **Flask** for backend simplicity
 - **React Flow** for rich free-form diagramming
-- **Fixed-format templates** for structured documents (user stories, requirements, project plans, test plans)
+- **Fixed-format templates** for structured documents (user stories, requirements, NFRs, project plans, test plans, ADRs, technology stack, risk register, domain model, acceptance tests, external resources)
+- **Free-text documents** for research and exploratory notes
+- **Requirement-to-test traceability** linking requirements and user stories to acceptance test specifications
 - **LLM-optimized export** for all design artifacts
 
 The architecture prioritizes simplicity, maintainability, and structured output — ensuring that design work flows directly into implementation by AI coding agents.

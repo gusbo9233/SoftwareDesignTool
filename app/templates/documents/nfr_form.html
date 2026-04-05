@@ -1,0 +1,75 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}{{ "Edit" if document else "New" }} Non-Functional Requirement - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ "Edit" if document else "New" }} NFR</span>
+{% endblock %}
+
+{% block project_content %}
+<h1>{{ "Edit" if document else "New" }} Non-Functional Requirement</h1>
+
+<form method="POST" class="form">
+    <div class="form-group">
+        <label for="title">Title</label>
+        <input type="text" id="title" name="title" value="{{ data.get('title', '') }}" placeholder="Short name for this NFR" required>
+    </div>
+
+    <div class="form-row">
+        <div class="form-group">
+            <label for="category">Category</label>
+            <select id="category" name="category">
+                <option value="performance" {{ 'selected' if data.get('category', 'performance') == 'performance' }}>Performance</option>
+                <option value="security" {{ 'selected' if data.get('category') == 'security' }}>Security</option>
+                <option value="reliability" {{ 'selected' if data.get('category') == 'reliability' }}>Reliability</option>
+                <option value="scalability" {{ 'selected' if data.get('category') == 'scalability' }}>Scalability</option>
+                <option value="privacy" {{ 'selected' if data.get('category') == 'privacy' }}>Privacy</option>
+                <option value="compliance" {{ 'selected' if data.get('category') == 'compliance' }}>Compliance</option>
+                <option value="usability" {{ 'selected' if data.get('category') == 'usability' }}>Usability</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="priority">Priority (MoSCoW)</label>
+            <select id="priority" name="priority">
+                <option value="must" {{ 'selected' if data.get('priority') == 'must' }}>Must</option>
+                <option value="should" {{ 'selected' if data.get('priority', 'should') == 'should' }}>Should</option>
+                <option value="could" {{ 'selected' if data.get('priority') == 'could' }}>Could</option>
+                <option value="wont" {{ 'selected' if data.get('priority') == 'wont' }}>Won't</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+                <option value="draft" {{ 'selected' if data.get('status', 'draft') == 'draft' }}>Draft</option>
+                <option value="approved" {{ 'selected' if data.get('status') == 'approved' }}>Approved</option>
+                <option value="verified" {{ 'selected' if data.get('status') == 'verified' }}>Verified</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="3" placeholder="Measurable statement of the requirement" required>{{ data.get('description', '') }}</textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="rationale">Rationale</label>
+        <textarea id="rationale" name="rationale" rows="2" placeholder="Why this NFR exists">{{ data.get('rationale', '') }}</textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="verification_method">Verification Method</label>
+        <input type="text" id="verification_method" name="verification_method" value="{{ data.get('verification_method', '') }}" placeholder="How compliance is measured or tested">
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ "Update" if document else "Create" }}</button>
+        <a href="{{ url_for('documents.index', project_id=project.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,91 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}Domain Model: {{ data.get('bounded_context_name', '') }} - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ data.get('bounded_context_name', 'Domain Model') }}</span>
+{% endblock %}
+
+{% block project_content %}
+<div class="page-header">
+    <h1>Domain Model: {{ data.get('bounded_context_name', 'Untitled') }}</h1>
+    <div class="actions">
+        <a href="{{ url_for('documents.edit', project_id=project.id, id=document.id) }}" class="btn">Edit</a>
+        <form method="POST" action="{{ url_for('documents.delete', project_id=project.id, id=document.id) }}" class="inline-form">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this domain model?')">Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="document-content">
+    {% if data.get('bounded_context_description') %}
+    <p>{{ data.bounded_context_description }}</p>
+    {% endif %}
+
+    {% if data.get('entities') %}
+    <h3>Major Entities</h3>
+    <table class="data-table">
+        <thead><tr><th>Name</th><th>Description</th><th>Key Attributes</th></tr></thead>
+        <tbody>
+            {% for entity in data.entities %}
+            <tr>
+                <td><strong>{{ entity.get('name', '—') }}</strong></td>
+                <td>{{ entity.get('description', '—') }}</td>
+                <td>{{ entity.get('key_attributes', '—') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if data.get('glossary') %}
+    <h3>Domain Language</h3>
+    <table class="data-table">
+        <thead><tr><th>Term</th><th>Definition</th></tr></thead>
+        <tbody>
+            {% for term in data.glossary %}
+            <tr>
+                <td><strong>{{ term.get('term', '—') }}</strong></td>
+                <td>{{ term.get('definition', '—') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if data.get('business_rules') %}
+    <h3>Business Rules</h3>
+    <ol>
+        {% for rule in data.business_rules %}
+        <li>{{ rule }}</li>
+        {% endfor %}
+    </ol>
+    {% endif %}
+
+    {% if data.get('external_systems') %}
+    <h3>External Systems</h3>
+    <table class="data-table">
+        <thead><tr><th>System</th><th>Type</th><th>Integration</th><th>Owner</th></tr></thead>
+        <tbody>
+            {% for sys in data.external_systems %}
+            <tr>
+                <td><strong>{{ sys.get('name', '—') }}</strong></td>
+                <td>{{ sys.get('system_type', '—') }}</td>
+                <td>{{ sys.get('integration_description', '—') }}</td>
+                <td>{{ sys.get('owner', '—') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+
+<div class="meta">
+    <small>Created {{ document.created_at.strftime('%Y-%m-%d %H:%M') }} | Updated {{ document.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+</div>
+{% endblock %}

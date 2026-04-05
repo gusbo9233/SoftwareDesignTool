@@ -1,0 +1,78 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}{{ "Edit" if document else "New" }} Technology Stack - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ "Edit" if document else "New" }} Technology Stack</span>
+{% endblock %}
+
+{% block project_content %}
+<h1>{{ "Edit" if document else "New" }} Technology Stack</h1>
+
+<form method="POST" class="form form-wide">
+    <fieldset>
+        <legend>Technologies</legend>
+        <table class="data-table" id="tech-table">
+            <thead>
+                <tr><th>Category</th><th>Technology</th><th>Version</th><th>Rationale</th><th>Alternatives</th><th>ADR Ref</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for item in data.get('items', [{}]) %}
+                <tr>
+                    <td>
+                        <select name="tech_category">
+                            <option value="frontend" {{ 'selected' if item.get('category') == 'frontend' }}>Frontend</option>
+                            <option value="backend" {{ 'selected' if item.get('category', 'backend') == 'backend' }}>Backend</option>
+                            <option value="database" {{ 'selected' if item.get('category') == 'database' }}>Database</option>
+                            <option value="infrastructure" {{ 'selected' if item.get('category') == 'infrastructure' }}>Infrastructure</option>
+                            <option value="testing" {{ 'selected' if item.get('category') == 'testing' }}>Testing</option>
+                            <option value="other" {{ 'selected' if item.get('category') == 'other' }}>Other</option>
+                        </select>
+                    </td>
+                    <td><input type="text" name="tech_technology" value="{{ item.get('technology', '') }}" placeholder="e.g. Flask"></td>
+                    <td><input type="text" name="tech_version" value="{{ item.get('version', '') }}" placeholder="e.g. 3.x"></td>
+                    <td><input type="text" name="tech_rationale" value="{{ item.get('rationale', '') }}" placeholder="Why chosen"></td>
+                    <td><input type="text" name="tech_alternatives" value="{{ item.get('alternatives_considered', '') }}" placeholder="What was evaluated"></td>
+                    <td><input type="text" name="tech_adr_reference" value="{{ item.get('adr_reference', '') }}" placeholder="ADR-001"></td>
+                    <td><button type="button" class="btn btn-small btn-danger" onclick="this.closest('tr').remove()">Remove</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-small" onclick="addTechRow()">+ Add Technology</button>
+    </fieldset>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ "Update" if document else "Create" }}</button>
+        <a href="{{ url_for('documents.index', project_id=project.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+
+<script>
+function addTechRow() {
+    const tbody = document.querySelector('#tech-table tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+        '<td><select name="tech_category">' +
+            '<option value="frontend">Frontend</option>' +
+            '<option value="backend" selected>Backend</option>' +
+            '<option value="database">Database</option>' +
+            '<option value="infrastructure">Infrastructure</option>' +
+            '<option value="testing">Testing</option>' +
+            '<option value="other">Other</option>' +
+        '</select></td>' +
+        '<td><input type="text" name="tech_technology" placeholder="e.g. Flask"></td>' +
+        '<td><input type="text" name="tech_version" placeholder="e.g. 3.x"></td>' +
+        '<td><input type="text" name="tech_rationale" placeholder="Why chosen"></td>' +
+        '<td><input type="text" name="tech_alternatives" placeholder="What was evaluated"></td>' +
+        '<td><input type="text" name="tech_adr_reference" placeholder="ADR-001"></td>' +
+        '<td><button type="button" class="btn btn-small btn-danger" onclick="this.closest(\'tr\').remove()">Remove</button></td>';
+    tbody.appendChild(tr);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}Risk Register - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>Risk Register</span>
+{% endblock %}
+
+{% block project_content %}
+<div class="page-header">
+    <h1>Risk Register</h1>
+    <div class="actions">
+        <a href="{{ url_for('documents.edit', project_id=project.id, id=document.id) }}" class="btn">Edit</a>
+        <form method="POST" action="{{ url_for('documents.delete', project_id=project.id, id=document.id) }}" class="inline-form">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this risk register?')">Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="document-content">
+    {% if data.get('items') %}
+    <table class="data-table">
+        <thead>
+            <tr><th>Title</th><th>Category</th><th>Likelihood</th><th>Impact</th><th>Status</th><th>Owner</th><th>Mitigation</th><th>Review Date</th></tr>
+        </thead>
+        <tbody>
+            {% for risk in data['items'] %}
+            <tr>
+                <td><strong>{{ risk.get('title', '—') }}</strong></td>
+                <td>{{ risk.get('category', '—') | capitalize }}</td>
+                <td>{{ risk.get('likelihood', '—') | capitalize }}</td>
+                <td>{{ risk.get('impact', '—') | capitalize }}</td>
+                <td>{{ risk.get('status', '—') | capitalize }}</td>
+                <td>{{ risk.get('owner', '—') }}</td>
+                <td>{{ risk.get('mitigation', '—') }}</td>
+                <td>{{ risk.get('review_date', '—') }}</td>
+            </tr>
+            {% if risk.get('description') %}
+            <tr class="detail-row">
+                <td colspan="8"><em>{{ risk.description }}</em></td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">No risks recorded yet.</p>
+    {% endif %}
+</div>
+
+<div class="meta">
+    <small>Created {{ document.created_at.strftime('%Y-%m-%d %H:%M') }} | Updated {{ document.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+</div>
+{% endblock %}

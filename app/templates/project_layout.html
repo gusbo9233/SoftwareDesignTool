@@ -1,48 +1,106 @@
 {% extends "base.html" %}
 
-{% block content %}
-<nav class="breadcrumb">
-    {% block breadcrumb %}
-    <a href="{{ url_for('projects.index') }}">Projects</a>
-    <span class="breadcrumb-sep">/</span>
-    <a href="{{ url_for('projects.detail', id=project.id) }}">{{ project.name }}</a>
-    {% endblock %}
-</nav>
+{% block main_class %}pb-8{% endblock %}
 
-<div class="project-layout">
-    <aside class="sidebar">
-        <nav class="sidebar-nav">
-            <div class="sidebar-project-name">{{ project.name }}</div>
-            <a href="{{ url_for('projects.detail', id=project.id) }}" class="sidebar-link {% if active_section == 'overview' %}active{% endif %}">
-                Overview
-            </a>
-            <a href="{{ url_for('documents.index', project_id=project.id) }}" class="sidebar-link {% if active_section == 'documents' %}active{% endif %}">
-                Documents
-                <span class="sidebar-count">{{ project.documents | length }}</span>
-            </a>
-            <a href="{{ url_for('diagrams.index', project_id=project.id) }}" class="sidebar-link {% if active_section == 'diagrams' %}active{% endif %}">
-                Diagrams
-                <span class="sidebar-count">{{ project.diagrams | length }}</span>
-            </a>
-            <a href="{{ url_for('api_endpoints.index', project_id=project.id) }}" class="sidebar-link {% if active_section == 'api_endpoints' %}active{% endif %}">
-                API Endpoints
-                <span class="sidebar-count">{{ project.api_endpoints | length }}</span>
-            </a>
-            <div class="sidebar-divider"></div>
-            <a href="{{ url_for('projects.export', id=project.id, format='json') }}" class="sidebar-link">
-                Export JSON
-            </a>
-            <a href="{{ url_for('projects.export', id=project.id, format='markdown') }}" class="sidebar-link">
-                Export Markdown
-            </a>
-            <div class="sidebar-divider"></div>
-            <a href="{{ url_for('projects.edit', id=project.id) }}" class="sidebar-link">
-                Settings
-            </a>
-        </nav>
+{% block nav_actions %}
+<a href="{{ url_for('projects.export', id=project.id, format='json') }}"
+   class="inline-flex items-center gap-1.5 text-xs font-label text-on-surface-variant hover:text-on-surface transition-colors px-3 py-1.5 rounded-sm hover:bg-surface-container">
+    <span class="material-symbols-outlined text-sm">download</span>
+    Export
+</a>
+<a href="{{ url_for('projects.edit', id=project.id) }}"
+   class="inline-flex items-center gap-1.5 text-xs font-label text-on-surface-variant hover:text-on-surface transition-colors px-3 py-1.5 rounded-sm hover:bg-surface-container">
+    <span class="material-symbols-outlined text-sm">settings</span>
+    Settings
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div class="px-6 py-2.5 bg-surface-container-low flex items-center gap-2 text-xs font-label text-on-surface-variant border-b-0" style="border-bottom: 1px solid rgba(171,179,183,0.15);">
+    <a href="{{ url_for('projects.index') }}" class="hover:text-primary transition-colors">Projects</a>
+    <span class="text-outline-variant">/</span>
+    <a href="{{ url_for('projects.detail', id=project.id) }}" class="hover:text-primary transition-colors">{{ project.name }}</a>
+    {% block breadcrumb_extra %}{% endblock %}
+</div>
+
+<!-- Layout: Sidebar + Main -->
+<div class="flex min-h-[calc(100vh-7rem)]">
+
+    <!-- Sidebar — Deep Dock -->
+    <aside class="w-56 shrink-0 bg-surface-dim sticky top-14 self-start h-[calc(100vh-3.5rem)] overflow-y-auto">
+        <div class="px-3 py-4">
+            <!-- Project name -->
+            <div class="px-3 py-2 mb-3">
+                <span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant block mb-1">Project</span>
+                <span class="font-bold text-sm text-on-surface block truncate" title="{{ project.name }}">{{ project.name }}</span>
+            </div>
+
+            <!-- Nav items -->
+            <nav class="space-y-0.5">
+                <a href="{{ url_for('projects.detail', id=project.id) }}"
+                   class="flex items-center justify-between px-3 py-2 rounded-sm text-sm font-label transition-colors
+                   {% if active_section == 'overview' %}bg-surface-bright text-primary border-l-2 border-primary pl-2.5{% else %}text-on-surface-variant hover:text-on-surface hover:bg-surface-container{% endif %}">
+                    <span class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-base">dashboard</span>
+                        Overview
+                    </span>
+                </a>
+
+                <a href="{{ url_for('documents.index', project_id=project.id) }}"
+                   class="flex items-center justify-between px-3 py-2 rounded-sm text-sm font-label transition-colors
+                   {% if active_section == 'documents' %}bg-surface-bright text-primary border-l-2 border-primary pl-2.5{% else %}text-on-surface-variant hover:text-on-surface hover:bg-surface-container{% endif %}">
+                    <span class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-base">description</span>
+                        Documents
+                    </span>
+                    <span class="font-label text-[10px] bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-sm">{{ project.documents | length }}</span>
+                </a>
+
+                <a href="{{ url_for('diagrams.index', project_id=project.id) }}"
+                   class="flex items-center justify-between px-3 py-2 rounded-sm text-sm font-label transition-colors
+                   {% if active_section == 'diagrams' %}bg-surface-bright text-primary border-l-2 border-primary pl-2.5{% else %}text-on-surface-variant hover:text-on-surface hover:bg-surface-container{% endif %}">
+                    <span class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-base">account_tree</span>
+                        Diagrams
+                    </span>
+                    <span class="font-label text-[10px] bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-sm">{{ project.diagrams | length }}</span>
+                </a>
+
+                <a href="{{ url_for('api_endpoints.index', project_id=project.id) }}"
+                   class="flex items-center justify-between px-3 py-2 rounded-sm text-sm font-label transition-colors
+                   {% if active_section == 'api_endpoints' %}bg-surface-bright text-primary border-l-2 border-primary pl-2.5{% else %}text-on-surface-variant hover:text-on-surface hover:bg-surface-container{% endif %}">
+                    <span class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-base">api</span>
+                        API Endpoints
+                    </span>
+                    <span class="font-label text-[10px] bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-sm">{{ project.api_endpoints | length }}</span>
+                </a>
+            </nav>
+
+            <!-- Divider -->
+            <div class="my-3 mx-1" style="height:1px; background:rgba(171,179,183,0.2);"></div>
+
+            <!-- Export links -->
+            <nav class="space-y-0.5">
+                <a href="{{ url_for('projects.export', id=project.id, format='json') }}"
+                   class="flex items-center gap-2 px-3 py-2 rounded-sm text-xs font-label text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
+                    <span class="material-symbols-outlined text-sm">data_object</span>
+                    Export JSON
+                </a>
+                <a href="{{ url_for('projects.export', id=project.id, format='markdown') }}"
+                   class="flex items-center gap-2 px-3 py-2 rounded-sm text-xs font-label text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
+                    <span class="material-symbols-outlined text-sm">text_snippet</span>
+                    Export Markdown
+                </a>
+            </nav>
+        </div>
     </aside>
-    <section class="project-main">
+
+    <!-- Main Content -->
+    <section class="flex-1 min-w-0 px-8 py-8">
         {% block project_content %}{% endblock %}
     </section>
+
 </div>
 {% endblock %}

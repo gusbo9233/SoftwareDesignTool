@@ -1,39 +1,81 @@
 {% extends "base.html" %}
 
-{% block title %}{{ "Edit" if project else "New" }} Project - Software Design Tool{% endblock %}
+{% block title %}{{ "Edit" if project else "New" }} Project — Software Design Tool{% endblock %}
+
+{% block main_class %}pb-12{% endblock %}
 
 {% block content %}
-<nav class="breadcrumb">
-    <a href="{{ url_for('projects.index') }}">Projects</a>
-    {% if project %}
-    <span class="breadcrumb-sep">/</span>
-    <a href="{{ url_for('projects.detail', id=project.id) }}">{{ project.name }}</a>
-    <span class="breadcrumb-sep">/</span>
-    <span>Edit</span>
-    {% else %}
-    <span class="breadcrumb-sep">/</span>
-    <span>New Project</span>
-    {% endif %}
-</nav>
+<div class="px-6 lg:px-12 max-w-2xl mx-auto py-10">
 
-<h1>{{ "Edit" if project else "New" }} Project</h1>
-
-<form method="POST" class="form">
-    <div class="form-group">
-        <label for="name">Name</label>
-        <input type="text" id="name" name="name" value="{{ project.name if project else '' }}" required maxlength="200">
-    </div>
-    <div class="form-group">
-        <label for="description">Description</label>
-        <textarea id="description" name="description" rows="4">{{ project.description if project else '' }}</textarea>
-    </div>
-    <div class="form-actions">
-        <button type="submit" class="btn btn-primary">{{ "Update" if project else "Create" }}</button>
+    <!-- Breadcrumb -->
+    <div class="flex items-center gap-2 text-xs font-label text-on-surface-variant mb-8">
+        <a href="{{ url_for('projects.index') }}" class="hover:text-primary transition-colors">Projects</a>
         {% if project %}
-        <a href="{{ url_for('projects.detail', id=project.id) }}" class="btn">Cancel</a>
+        <span class="text-outline-variant">/</span>
+        <a href="{{ url_for('projects.detail', id=project.id) }}" class="hover:text-primary transition-colors">{{ project.name }}</a>
+        <span class="text-outline-variant">/</span>
+        <span>Edit</span>
         {% else %}
-        <a href="{{ url_for('projects.index') }}" class="btn">Cancel</a>
+        <span class="text-outline-variant">/</span>
+        <span>New Project</span>
         {% endif %}
     </div>
-</form>
+
+    <!-- Header -->
+    <div class="mb-8">
+        <span class="font-label text-[10px] uppercase tracking-widest text-primary mb-1.5 block">
+            {% if project %}Edit{% else %}Create{% endif %}
+        </span>
+        <h1 class="text-3xl font-extrabold tracking-tighter text-on-surface">
+            {% if project %}{{ project.name }}{% else %}New Project{% endif %}
+        </h1>
+    </div>
+
+    <!-- Form -->
+    <form method="POST" class="space-y-6">
+        <div class="bg-surface-container-lowest rounded-lg p-6 space-y-5" style="box-shadow: 0 2px 8px rgba(43,52,55,0.04);">
+            <div class="space-y-1.5">
+                <label for="name" class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant block">
+                    Project Name
+                </label>
+                <input type="text"
+                       id="name"
+                       name="name"
+                       value="{{ project.name if project else '' }}"
+                       required
+                       maxlength="200"
+                       class="w-full bg-surface-container text-on-surface text-sm font-body px-3 py-2.5 rounded-sm border-0 outline-none focus:ring-1 focus:ring-primary placeholder-outline transition-shadow">
+            </div>
+            <div class="space-y-1.5">
+                <label for="description" class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant block">
+                    Description
+                </label>
+                <textarea id="description"
+                          name="description"
+                          rows="4"
+                          class="w-full bg-surface-container text-on-surface text-sm font-body px-3 py-2.5 rounded-sm border-0 outline-none focus:ring-1 focus:ring-primary placeholder-outline transition-shadow resize-y">{{ project.description if project else '' }}</textarea>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button type="submit"
+                    class="inline-flex items-center gap-2 bg-gradient-to-br from-primary to-primary-dim text-on-primary px-5 py-2.5 rounded-sm font-semibold text-sm font-label hover:brightness-110 active:scale-95 transition-all shadow-sm">
+                <span class="material-symbols-outlined text-base">{% if project %}save{% else %}add{% endif %}</span>
+                {% if project %}Update Project{% else %}Create Project{% endif %}
+            </button>
+            {% if project %}
+            <a href="{{ url_for('projects.detail', id=project.id) }}"
+               class="inline-flex items-center gap-2 bg-surface-container text-on-surface px-5 py-2.5 rounded-sm font-semibold text-sm font-label hover:bg-surface-container-high transition-colors">
+                Cancel
+            </a>
+            {% else %}
+            <a href="{{ url_for('projects.index') }}"
+               class="inline-flex items-center gap-2 bg-surface-container text-on-surface px-5 py-2.5 rounded-sm font-semibold text-sm font-label hover:bg-surface-container-high transition-colors">
+                Cancel
+            </a>
+            {% endif %}
+        </div>
+    </form>
+
+</div>
 {% endblock %}

@@ -1,31 +1,91 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - Software Design Tool{% endblock %}
+{% block title %}Projects — Software Design Tool{% endblock %}
+{% block nav_active_dashboard %}text-primary border-b border-primary pb-0.5{% endblock %}
+
+{% block main_class %}pb-12{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Projects</h1>
-    <a href="{{ url_for('projects.create') }}" class="btn btn-primary">New Project</a>
-</div>
+<div class="px-6 lg:px-12 max-w-7xl mx-auto py-10">
 
-{% if projects %}
-<div class="project-list">
-    {% for project in projects %}
-    <a href="{{ url_for('projects.detail', id=project.id) }}" class="project-card-link">
-        <div class="project-card">
-            <h2>{{ project.name }}</h2>
-            <p>{{ project.description or "No description" }}</p>
-            <div class="project-stats">
-                <span class="stat">{{ project.documents | length }} docs</span>
-                <span class="stat">{{ project.diagrams | length }} diagrams</span>
-                <span class="stat">{{ project.api_endpoints | length }} endpoints</span>
-            </div>
-            <small>Updated {{ project.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+    <!-- Page Header -->
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+        <div>
+            <span class="font-label text-xs font-medium uppercase tracking-widest text-primary mb-2 block">Engineering Workspace</span>
+            <h1 class="text-4xl font-extrabold tracking-tighter text-on-surface">Technical Projects</h1>
         </div>
-    </a>
-    {% endfor %}
+        <a href="{{ url_for('projects.create') }}"
+           class="inline-flex items-center gap-2 bg-gradient-to-br from-primary to-primary-dim text-on-primary px-5 py-2.5 rounded-sm font-semibold text-sm hover:brightness-110 active:scale-95 transition-all shadow-sm">
+            <span class="material-symbols-outlined text-lg">add</span>
+            New Project
+        </a>
+    </div>
+
+    <!-- Project Cards Grid -->
+    {% if projects %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for project in projects %}
+        <a href="{{ url_for('projects.detail', id=project.id) }}"
+           class="group relative flex flex-col bg-surface-container-low rounded-lg overflow-hidden transition-all hover:bg-surface-container-high cursor-pointer">
+            <!-- Card Header Band -->
+            <div class="h-2 w-full bg-gradient-to-r from-primary-fixed-dim to-secondary-fixed-dim"></div>
+            <div class="p-6 flex flex-col flex-1">
+                <div class="bg-surface-container-lowest p-5 rounded-lg flex flex-col flex-1" style="box-shadow: 0 2px 8px rgba(43,52,55,0.04);">
+                    <div class="flex items-start justify-between mb-2">
+                        <h3 class="text-lg font-bold tracking-tight group-hover:text-primary transition-colors leading-tight">{{ project.name }}</h3>
+                        <span class="font-label text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-sm bg-primary/10 text-primary border border-primary/20 ml-2 whitespace-nowrap">Active</span>
+                    </div>
+                    <p class="text-on-surface-variant text-sm leading-relaxed mb-6 flex-1">{{ project.description or "No description provided." }}</p>
+                    <!-- Stats -->
+                    <div class="grid grid-cols-3 gap-4 border-t pt-4" style="border-color: rgba(171,179,183,0.15);">
+                        <div class="flex flex-col">
+                            <span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Documents</span>
+                            <span class="font-label text-lg font-bold text-on-surface">{{ project.documents | length }}</span>
+                        </div>
+                        <div class="flex flex-col px-4" style="border-left: 1px solid rgba(171,179,183,0.15); border-right: 1px solid rgba(171,179,183,0.15);">
+                            <span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Diagrams</span>
+                            <span class="font-label text-lg font-bold text-on-surface">{{ project.diagrams | length }}</span>
+                        </div>
+                        <div class="flex flex-col items-end">
+                            <span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Endpoints</span>
+                            <span class="font-label text-lg font-bold text-on-surface">{{ project.api_endpoints | length }}</span>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <span class="font-label text-[10px] text-outline">Updated {{ project.updated_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                    </div>
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+
+        <!-- New Project CTA Card -->
+        <a href="{{ url_for('projects.create') }}"
+           class="group relative flex flex-col border-2 border-dashed rounded-lg overflow-hidden transition-all hover:border-primary/40 hover:bg-primary/5 cursor-pointer min-h-[240px] justify-center items-center text-center p-8"
+           style="border-color: rgba(171,179,183,0.3);">
+            <div class="w-14 h-14 rounded-full bg-surface-container flex items-center justify-center mb-4 group-hover:bg-primary/10 transition-colors">
+                <span class="material-symbols-outlined text-3xl text-outline group-hover:text-primary">add_circle</span>
+            </div>
+            <h4 class="text-base font-bold text-on-surface mb-1">New Project</h4>
+            <p class="text-on-surface-variant text-sm max-w-[180px]">Initialize a new architectural design workspace.</p>
+        </a>
+    </div>
+
+    {% else %}
+    <!-- Empty state -->
+    <div class="flex flex-col items-center justify-center py-24 text-center">
+        <div class="w-20 h-20 rounded-full bg-surface-container flex items-center justify-center mb-6">
+            <span class="material-symbols-outlined text-4xl text-outline">folder_open</span>
+        </div>
+        <h2 class="text-2xl font-bold tracking-tight text-on-surface mb-2">No projects yet</h2>
+        <p class="text-on-surface-variant text-sm mb-8 max-w-sm">Create your first project to start organizing your software design artifacts.</p>
+        <a href="{{ url_for('projects.create') }}"
+           class="inline-flex items-center gap-2 bg-gradient-to-br from-primary to-primary-dim text-on-primary px-5 py-2.5 rounded-sm font-semibold text-sm hover:brightness-110 active:scale-95 transition-all shadow-sm">
+            <span class="material-symbols-outlined text-lg">add</span>
+            New Project
+        </a>
+    </div>
+    {% endif %}
+
 </div>
-{% else %}
-<p class="empty-state">No projects yet. Create one to get started.</p>
-{% endif %}
 {% endblock %}

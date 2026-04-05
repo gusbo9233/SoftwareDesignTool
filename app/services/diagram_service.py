@@ -1,42 +1,67 @@
-from app import db
-from app.models.diagram import Diagram
+from datetime import datetime
+from types import SimpleNamespace
+
+import app as _app
+
+
+def _parse_dt(s):
+    if not s or not isinstance(s, str):
+        return s
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return s
+
+
+def _diagram(d):
+    d = dict(d)
+    for field in ("created_at", "updated_at"):
+        if field in d:
+            d[field] = _parse_dt(d[field])
+    return SimpleNamespace(**d)
 
 
 class DiagramService:
     @staticmethod
     def get_all_for_project(project_id):
-        return (
-            Diagram.query.filter_by(project_id=project_id)
-            .order_by(Diagram.updated_at.desc())
-            .all()
+        res = (
+            _app.supabase.table("diagrams")
+            .select("*")
+            .eq("project_id", project_id)
+            .order("updated_at", desc=True)
+            .execute()
         )
+        return [_diagram(d) for d in res.data]
 
     @staticmethod
     def get(id):
-        return db.session.get(Diagram, id)
+        res = _app.supabase.table("diagrams").select("*").eq("id", id).maybe_single().execute()
+        return _diagram(res.data) if res.data else None
 
     @staticmethod
     def create(project_id, diagram_type, name, data=None):
-        diagram = Diagram(
-            project_id=project_id,
-            type=diagram_type,
-            name=name,
-            data=data or {"nodes": [], "edges": []},
-        )
-        db.session.add(diagram)
-        db.session.commit()
-        return diagram
+        res = _app.supabase.table("diagrams").insert({
+            "project_id": project_id,
+            "type": diagram_type,
+            "name": name,
+            "data": data or {"nodes": [], "edges": []},
+        }).execute()
+        return SimpleNamespace(**res.data[0])
 
     @staticmethod
     def update(diagram, name=None, data=None):
+        updates = {}
         if name is not None:
-            diagram.name = name
+            updates["name"] = name
         if data is not None:
-            diagram.data = data
-        db.session.commit()
+            updates["data"] = data
+        if updates:
+            res = _app.supabase.table("diagrams").update(updates).eq("id", diagram.id).execute()
+            if res.data:
+                for k, v in res.data[0].items():
+                    setattr(diagram, k, v)
         return diagram
 
     @staticmethod
     def delete(diagram):
-        db.session.delete(diagram)
-        db.session.commit()
+        _app.supabase.table("diagrams").delete().eq("id", diagram.id).execute()

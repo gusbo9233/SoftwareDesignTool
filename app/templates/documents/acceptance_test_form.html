@@ -1,0 +1,88 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}{{ "Edit" if document else "New" }} Acceptance Test - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ "Edit" if document else "New" }} Acceptance Test</span>
+{% endblock %}
+
+{% block project_content %}
+<h1>{{ "Edit" if document else "New" }} Acceptance Test</h1>
+
+<form method="POST" class="form">
+    <div class="form-group">
+        <label for="title">Title</label>
+        <input type="text" id="title" name="title" value="{{ data.get('title', '') }}" placeholder="Short scenario name" required>
+    </div>
+
+    <div class="form-row">
+        <div class="form-group">
+            <label for="requirement_reference">Requirement Reference</label>
+            <input type="text" id="requirement_reference" name="requirement_reference" value="{{ data.get('requirement_reference', '') }}" placeholder="e.g. REQ-001">
+        </div>
+        <div class="form-group">
+            <label for="user_story_reference">User Story Reference</label>
+            <input type="text" id="user_story_reference" name="user_story_reference" value="{{ data.get('user_story_reference', '') }}" placeholder="e.g. US-001">
+        </div>
+        <div class="form-group">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+                <option value="draft" {{ 'selected' if data.get('status', 'draft') == 'draft' }}>Draft</option>
+                <option value="approved" {{ 'selected' if data.get('status') == 'approved' }}>Approved</option>
+                <option value="pass" {{ 'selected' if data.get('status') == 'pass' }}>Pass</option>
+                <option value="fail" {{ 'selected' if data.get('status') == 'fail' }}>Fail</option>
+                <option value="blocked" {{ 'selected' if data.get('status') == 'blocked' }}>Blocked</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="preconditions">Preconditions</label>
+        <textarea id="preconditions" name="preconditions" rows="2" placeholder="State required before executing the test">{{ data.get('preconditions', '') }}</textarea>
+    </div>
+
+    <div class="form-group">
+        <label>Steps</label>
+        <div id="steps-list">
+            {% for step in data.get('steps', ['']) %}
+            <div class="repeatable-row">
+                <input type="text" name="steps" value="{{ step }}" placeholder="Test step">
+                <button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">Remove</button>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" class="btn btn-small" onclick="addRow('steps-list', 'steps', 'Test step')">+ Add Step</button>
+    </div>
+
+    <div class="form-group">
+        <label for="expected_result">Expected Result</label>
+        <textarea id="expected_result" name="expected_result" rows="3" placeholder="Observable outcome that constitutes a pass" required>{{ data.get('expected_result', '') }}</textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="notes">Notes</label>
+        <textarea id="notes" name="notes" rows="2" placeholder="Optional notes">{{ data.get('notes', '') }}</textarea>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ "Update" if document else "Create" }}</button>
+        <a href="{{ url_for('documents.index', project_id=project.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+
+<script>
+function addRow(listId, name, placeholder) {
+    const list = document.getElementById(listId);
+    const row = document.createElement('div');
+    row.className = 'repeatable-row';
+    row.innerHTML = '<input type="text" name="' + name + '" placeholder="' + placeholder + '">' +
+        '<button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">Remove</button>';
+    list.appendChild(row);
+}
+</script>
+{% endblock %}

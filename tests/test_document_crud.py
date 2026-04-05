@@ -1,116 +1,85 @@
 import pytest
 from pydantic import ValidationError
-from app import create_app, db
-from app.services.project_service import ProjectService
 from app.services.document_service import DocumentService
 from app.schemas.document import (
     UserStoryData, RequirementData, ProjectPlanData, TestPlanData,
 )
 
 
-@pytest.fixture
-def app():
-    app = create_app("testing")
-    with app.app_context():
-        db.create_all()
-        yield app
-        db.session.remove()
-        db.drop_all()
-
-
-@pytest.fixture
-def client(app):
-    return app.test_client()
-
-
-@pytest.fixture
-def project_id(app):
-    with app.app_context():
-        p = ProjectService.create(name="Test Project", description="For document tests")
-        return p.id
-
-
 class TestDocumentService:
-    def test_create_user_story(self, app, project_id):
-        with app.app_context():
-            doc = DocumentService.create(
-                project_id=project_id,
-                doc_type="user_story",
-                data={"user_type": "developer", "action": "write code", "benefit": "ship features"},
-            )
-            assert doc.id is not None
-            assert doc.type == "user_story"
-            assert doc.data["user_type"] == "developer"
+    def test_create_user_story(self, project_id):
+        doc = DocumentService.create(
+            project_id=project_id,
+            doc_type="user_story",
+            data={"user_type": "developer", "action": "write code", "benefit": "ship features"},
+        )
+        assert doc.id is not None
+        assert doc.type == "user_story"
+        assert doc.data["user_type"] == "developer"
 
-    def test_create_requirement(self, app, project_id):
-        with app.app_context():
-            doc = DocumentService.create(
-                project_id=project_id,
-                doc_type="requirement",
-                data={"title": "Auth", "description": "JWT authentication"},
-            )
-            assert doc.type == "requirement"
-            assert doc.data["title"] == "Auth"
+    def test_create_requirement(self, project_id):
+        doc = DocumentService.create(
+            project_id=project_id,
+            doc_type="requirement",
+            data={"title": "Auth", "description": "JWT authentication"},
+        )
+        assert doc.type == "requirement"
+        assert doc.data["title"] == "Auth"
 
-    def test_create_project_plan(self, app, project_id):
-        with app.app_context():
-            doc = DocumentService.create(
-                project_id=project_id,
-                doc_type="project_plan",
-                data={"project_name": "My Plan", "goals": ["Goal 1"]},
-            )
-            assert doc.type == "project_plan"
-            assert doc.data["goals"] == ["Goal 1"]
+    def test_create_project_plan(self, project_id):
+        doc = DocumentService.create(
+            project_id=project_id,
+            doc_type="project_plan",
+            data={"project_name": "My Plan", "goals": ["Goal 1"]},
+        )
+        assert doc.type == "project_plan"
+        assert doc.data["goals"] == ["Goal 1"]
 
-    def test_create_test_plan(self, app, project_id):
-        with app.app_context():
-            doc = DocumentService.create(
-                project_id=project_id,
-                doc_type="test_plan",
-                data={"test_scope": "API layer"},
-            )
-            assert doc.type == "test_plan"
-            assert doc.data["test_scope"] == "API layer"
+    def test_create_test_plan(self, project_id):
+        doc = DocumentService.create(
+            project_id=project_id,
+            doc_type="test_plan",
+            data={"test_scope": "API layer"},
+        )
+        assert doc.type == "test_plan"
+        assert doc.data["test_scope"] == "API layer"
 
-    def test_get_document(self, app, project_id):
-        with app.app_context():
-            created = DocumentService.create(project_id=project_id, doc_type="user_story", data={"user_type": "admin", "action": "manage", "benefit": "control"})
-            found = DocumentService.get(created.id)
-            assert found is not None
-            assert found.data["user_type"] == "admin"
+    def test_get_document(self, project_id):
+        created = DocumentService.create(
+            project_id=project_id, doc_type="user_story",
+            data={"user_type": "admin", "action": "manage", "benefit": "control"},
+        )
+        found = DocumentService.get(created.id)
+        assert found is not None
+        assert found.data["user_type"] == "admin"
 
-    def test_get_nonexistent(self, app):
-        with app.app_context():
-            assert DocumentService.get("nonexistent") is None
+    def test_get_nonexistent(self):
+        assert DocumentService.get("00000000-0000-0000-0000-000000000000") is None
 
-    def test_get_all_for_project(self, app, project_id):
-        with app.app_context():
-            DocumentService.create(project_id=project_id, doc_type="user_story", data={"user_type": "a", "action": "b", "benefit": "c"})
-            DocumentService.create(project_id=project_id, doc_type="requirement", data={"title": "t", "description": "d"})
-            docs = DocumentService.get_all_for_project(project_id)
-            assert len(docs) == 2
+    def test_get_all_for_project(self, project_id):
+        DocumentService.create(project_id=project_id, doc_type="user_story", data={"user_type": "a", "action": "b", "benefit": "c"})
+        DocumentService.create(project_id=project_id, doc_type="requirement", data={"title": "t", "description": "d"})
+        docs = DocumentService.get_all_for_project(project_id)
+        assert len(docs) == 2
 
-    def test_get_all_filtered_by_type(self, app, project_id):
-        with app.app_context():
-            DocumentService.create(project_id=project_id, doc_type="user_story", data={})
-            DocumentService.create(project_id=project_id, doc_type="requirement", data={})
-            docs = DocumentService.get_all_for_project(project_id, doc_type="user_story")
-            assert len(docs) == 1
-            assert docs[0].type == "user_story"
+    def test_get_all_filtered_by_type(self, project_id):
+        DocumentService.create(project_id=project_id, doc_type="user_story", data={})
+        DocumentService.create(project_id=project_id, doc_type="requirement", data={})
+        docs = DocumentService.get_all_for_project(project_id, doc_type="user_story")
+        assert len(docs) == 1
+        assert docs[0].type == "user_story"
 
-    def test_update_document(self, app, project_id):
-        with app.app_context():
-            doc = DocumentService.create(project_id=project_id, doc_type="user_story", data={"user_type": "old"})
-            DocumentService.update(doc, data={"user_type": "new", "action": "test", "benefit": "test"})
-            refreshed = DocumentService.get(doc.id)
-            assert refreshed.data["user_type"] == "new"
+    def test_update_document(self, project_id):
+        doc = DocumentService.create(project_id=project_id, doc_type="user_story", data={"user_type": "old"})
+        DocumentService.update(doc, data={"user_type": "new", "action": "test", "benefit": "test"})
+        refreshed = DocumentService.get(doc.id)
+        assert refreshed.data["user_type"] == "new"
 
-    def test_delete_document(self, app, project_id):
-        with app.app_context():
-            doc = DocumentService.create(project_id=project_id, doc_type="user_story", data={})
-            did = doc.id
-            DocumentService.delete(doc)
-            assert DocumentService.get(did) is None
+    def test_delete_document(self, project_id):
+        doc = DocumentService.create(project_id=project_id, doc_type="user_story", data={})
+        did = doc.id
+        DocumentService.delete(doc)
+        assert DocumentService.get(did) is None
 
 
 class TestDocumentRoutes:
@@ -198,52 +167,46 @@ class TestDocumentRoutes:
                 "test_strategy": "Unit and integration",
                 "entry_criteria": "Code complete",
                 "exit_criteria": "All tests pass",
-                "environment": "Python 3.11, SQLite",
+                "environment": "Python 3.11, Supabase",
             },
             follow_redirects=True,
         )
         assert response.status_code == 200
         assert b"API endpoints" in response.data
 
-    def test_document_detail(self, client, app, project_id):
-        with app.app_context():
-            doc = DocumentService.create(
-                project_id=project_id, doc_type="user_story",
-                data={"user_type": "admin", "action": "manage users", "benefit": "control access"},
-            )
-            did = doc.id
-        response = client.get(f"/projects/{project_id}/documents/{did}")
+    def test_document_detail(self, client, project_id):
+        doc = DocumentService.create(
+            project_id=project_id, doc_type="user_story",
+            data={"user_type": "admin", "action": "manage users", "benefit": "control access"},
+        )
+        response = client.get(f"/projects/{project_id}/documents/{doc.id}")
         assert response.status_code == 200
         assert b"admin" in response.data
 
     def test_document_detail_not_found(self, client, project_id):
-        response = client.get(f"/projects/{project_id}/documents/nonexistent", follow_redirects=True)
+        response = client.get(f"/projects/{project_id}/documents/00000000-0000-0000-0000-000000000000", follow_redirects=True)
         assert response.status_code == 200
         assert b"not found" in response.data
 
-    def test_edit_document(self, client, app, project_id):
-        with app.app_context():
-            doc = DocumentService.create(
-                project_id=project_id, doc_type="requirement",
-                data={"title": "Old Title", "description": "Old desc"},
-            )
-            did = doc.id
+    def test_edit_document(self, client, project_id):
+        doc = DocumentService.create(
+            project_id=project_id, doc_type="requirement",
+            data={"title": "Old Title", "description": "Old desc"},
+        )
         response = client.post(
-            f"/projects/{project_id}/documents/{did}/edit",
+            f"/projects/{project_id}/documents/{doc.id}/edit",
             data={"title": "New Title", "description": "New desc", "req_type": "functional", "priority": "must", "status": "approved", "category": "", "rationale": ""},
             follow_redirects=True,
         )
         assert response.status_code == 200
         assert b"New Title" in response.data
 
-    def test_delete_document_route(self, client, app, project_id):
-        with app.app_context():
-            doc = DocumentService.create(
-                project_id=project_id, doc_type="user_story",
-                data={"user_type": "tester", "action": "test", "benefit": "quality"},
-            )
-            did = doc.id
-        response = client.post(f"/projects/{project_id}/documents/{did}/delete", follow_redirects=True)
+    def test_delete_document_route(self, client, project_id):
+        doc = DocumentService.create(
+            project_id=project_id, doc_type="user_story",
+            data={"user_type": "tester", "action": "test", "benefit": "quality"},
+        )
+        response = client.post(f"/projects/{project_id}/documents/{doc.id}/delete", follow_redirects=True)
         assert response.status_code == 200
 
     def test_invalid_doc_type(self, client, project_id):

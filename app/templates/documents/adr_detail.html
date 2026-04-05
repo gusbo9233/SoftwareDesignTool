@@ -1,0 +1,70 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}ADR: {{ data.get('title', '') }} - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ data.get('title', 'ADR') }}</span>
+{% endblock %}
+
+{% block project_content %}
+<div class="page-header">
+    <h1>ADR: {{ data.get('title', 'Untitled') }}</h1>
+    <div class="actions">
+        <a href="{{ url_for('documents.edit', project_id=project.id, id=document.id) }}" class="btn">Edit</a>
+        <form method="POST" action="{{ url_for('documents.delete', project_id=project.id, id=document.id) }}" class="inline-form">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this ADR?')">Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="document-content">
+    <table class="detail-table">
+        <tr><th>Status</th><td>{{ data.get('status', 'proposed') | capitalize }}</td></tr>
+    </table>
+
+    <h3>Context</h3>
+    <p>{{ data.get('context', '—') }}</p>
+
+    <h3>Decision</h3>
+    <p>{{ data.get('decision', '—') }}</p>
+
+    {% if data.get('alternatives') %}
+    <h3>Alternatives Considered</h3>
+    <table class="data-table">
+        <thead><tr><th>Alternative</th><th>Pros</th><th>Cons</th></tr></thead>
+        <tbody>
+            {% for alt in data.alternatives %}
+            <tr>
+                <td>{{ alt.get('name', '—') }}</td>
+                <td>{{ alt.get('pros', '—') }}</td>
+                <td>{{ alt.get('cons', '—') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if data.get('consequences') %}
+    <h3>Consequences</h3>
+    <p>{{ data.consequences }}</p>
+    {% endif %}
+
+    {% if data.get('related_adrs') %}
+    <h3>Related ADRs</h3>
+    <ul>
+        {% for ref in data.related_adrs %}
+        <li>{{ ref }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+
+<div class="meta">
+    <small>Created {{ document.created_at.strftime('%Y-%m-%d %H:%M') }} | Updated {{ document.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+</div>
+{% endblock %}

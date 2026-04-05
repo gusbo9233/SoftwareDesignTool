@@ -1,40 +1,97 @@
 {% extends "project_layout.html" %}
 {% set active_section = "overview" %}
 
-{% block title %}{{ project.name }} - Software Design Tool{% endblock %}
+{% block title %}{{ project.name }} — Software Design Tool{% endblock %}
 
 {% block project_content %}
-<div class="page-header">
-    <h1>{{ project.name }}</h1>
-    <div class="actions">
-        <a href="{{ url_for('projects.export', id=project.id, format='json') }}" class="btn btn-primary">Export JSON</a>
-        <a href="{{ url_for('projects.export', id=project.id, format='markdown') }}" class="btn btn-primary">Export Markdown</a>
-        <a href="{{ url_for('projects.edit', id=project.id) }}" class="btn">Edit</a>
-        <form method="POST" action="{{ url_for('projects.delete', id=project.id) }}" class="inline-form">
-            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this project?')">Delete</button>
+
+<!-- Page Header -->
+<div class="flex items-start justify-between mb-8">
+    <div>
+        <span class="font-label text-[10px] uppercase tracking-widest text-primary mb-1.5 block">Project Overview</span>
+        <h1 class="text-3xl font-extrabold tracking-tighter text-on-surface">{{ project.name }}</h1>
+        {% if project.description %}
+        <p class="text-on-surface-variant text-sm mt-2 max-w-xl leading-relaxed">{{ project.description }}</p>
+        {% endif %}
+        <span class="font-label text-[10px] text-outline mt-2 block">
+            Created {{ project.created_at.strftime('%Y-%m-%d') }} &nbsp;·&nbsp; Updated {{ project.updated_at.strftime('%Y-%m-%d %H:%M') }}
+        </span>
+    </div>
+    <div class="flex items-center gap-2 shrink-0">
+        <a href="{{ url_for('projects.export', id=project.id, format='json') }}"
+           class="inline-flex items-center gap-1.5 bg-gradient-to-br from-primary to-primary-dim text-on-primary px-4 py-2 rounded-sm font-semibold text-xs font-label hover:brightness-110 active:scale-95 transition-all shadow-sm">
+            <span class="material-symbols-outlined text-sm">download</span>
+            Export JSON
+        </a>
+        <a href="{{ url_for('projects.export', id=project.id, format='markdown') }}"
+           class="inline-flex items-center gap-1.5 bg-surface-container text-on-surface px-4 py-2 rounded-sm font-semibold text-xs font-label hover:bg-surface-container-high transition-colors">
+            <span class="material-symbols-outlined text-sm">text_snippet</span>
+            Export MD
+        </a>
+        <a href="{{ url_for('projects.edit', id=project.id) }}"
+           class="inline-flex items-center gap-1.5 bg-surface-container text-on-surface px-4 py-2 rounded-sm font-semibold text-xs font-label hover:bg-surface-container-high transition-colors">
+            <span class="material-symbols-outlined text-sm">edit</span>
+            Edit
+        </a>
+        <form method="POST" action="{{ url_for('projects.delete', id=project.id) }}" class="inline">
+            <button type="submit"
+                    onclick="return confirm('Delete this project and all its contents?')"
+                    class="inline-flex items-center gap-1.5 bg-surface-container text-error px-4 py-2 rounded-sm font-semibold text-xs font-label hover:bg-error-container/30 transition-colors">
+                <span class="material-symbols-outlined text-sm">delete</span>
+                Delete
+            </button>
         </form>
     </div>
 </div>
 
-<p>{{ project.description or "No description" }}</p>
+<!-- Section Label -->
+<h2 class="text-xs font-label font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 flex items-center gap-3">
+    <span class="h-px w-6 bg-outline-variant"></span>
+    Artifacts
+</h2>
 
-<div class="meta">
-    <small>Created {{ project.created_at.strftime('%Y-%m-%d %H:%M') }} | Updated {{ project.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+<!-- Artifact Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+    <!-- Documents -->
+    <a href="{{ url_for('documents.index', project_id=project.id) }}"
+       class="group flex flex-col bg-surface-container-low rounded-lg p-5 hover:bg-surface-container-high transition-all cursor-pointer">
+        <div class="flex items-center justify-between mb-4">
+            <span class="w-9 h-9 rounded-sm bg-secondary/10 flex items-center justify-center">
+                <span class="material-symbols-outlined text-secondary text-xl">description</span>
+            </span>
+            <span class="font-label text-2xl font-bold text-on-surface">{{ project.documents | length }}</span>
+        </div>
+        <span class="font-label text-xs font-semibold uppercase tracking-widest text-on-surface-variant mb-1">Documents</span>
+        <span class="text-xs text-on-surface-variant group-hover:text-primary transition-colors">Requirements, ADRs, User Stories &rarr;</span>
+    </a>
+
+    <!-- Diagrams -->
+    <a href="{{ url_for('diagrams.index', project_id=project.id) }}"
+       class="group flex flex-col bg-surface-container-low rounded-lg p-5 hover:bg-surface-container-high transition-all cursor-pointer">
+        <div class="flex items-center justify-between mb-4">
+            <span class="w-9 h-9 rounded-sm bg-tertiary/10 flex items-center justify-center">
+                <span class="material-symbols-outlined text-tertiary text-xl">account_tree</span>
+            </span>
+            <span class="font-label text-2xl font-bold text-on-surface">{{ project.diagrams | length }}</span>
+        </div>
+        <span class="font-label text-xs font-semibold uppercase tracking-widest text-on-surface-variant mb-1">Diagrams</span>
+        <span class="text-xs text-on-surface-variant group-hover:text-primary transition-colors">Architecture, UML, ER, Workflow &rarr;</span>
+    </a>
+
+    <!-- API Endpoints -->
+    <a href="{{ url_for('api_endpoints.index', project_id=project.id) }}"
+       class="group flex flex-col bg-surface-container-low rounded-lg p-5 hover:bg-surface-container-high transition-all cursor-pointer">
+        <div class="flex items-center justify-between mb-4">
+            <span class="w-9 h-9 rounded-sm bg-primary/10 flex items-center justify-center">
+                <span class="material-symbols-outlined text-primary text-xl">api</span>
+            </span>
+            <span class="font-label text-2xl font-bold text-on-surface">{{ project.api_endpoints | length }}</span>
+        </div>
+        <span class="font-label text-xs font-semibold uppercase tracking-widest text-on-surface-variant mb-1">API Endpoints</span>
+        <span class="text-xs text-on-surface-variant group-hover:text-primary transition-colors">REST API definitions &rarr;</span>
+    </a>
+
 </div>
 
-<h2>Artifacts</h2>
-<div class="artifact-grid">
-    <a href="{{ url_for('documents.index', project_id=project.id) }}" class="artifact-card doc-create-link">
-        <h3>Documents</h3>
-        <p>{{ project.documents | length }} document(s)</p>
-    </a>
-    <a href="{{ url_for('diagrams.index', project_id=project.id) }}" class="artifact-card doc-create-link">
-        <h3>Diagrams</h3>
-        <p>{{ project.diagrams | length }} diagram(s)</p>
-    </a>
-    <a href="{{ url_for('api_endpoints.index', project_id=project.id) }}" class="artifact-card doc-create-link">
-        <h3>API Endpoints</h3>
-        <p>{{ project.api_endpoints | length }} endpoint(s)</p>
-    </a>
-</div>
 {% endblock %}

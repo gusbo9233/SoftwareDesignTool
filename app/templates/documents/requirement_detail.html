@@ -1,13 +1,12 @@
 {% extends "project_layout.html" %}
 {% set active_section = "documents" %}
 
-{% block title %}Requirement: {{ data.get('title', '') }} - {{ project.name }}{% endblock %}
+{% block title %}Requirement: {{ data.get('title', '') }} — {{ project.name }}{% endblock %}
 
-{% block breadcrumb %}
-{{ super() }}
-<span class="breadcrumb-sep">/</span>
-<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
-<span class="breadcrumb-sep">/</span>
+{% block breadcrumb_extra %}
+<span class="text-outline-variant">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}" class="hover:text-primary transition-colors">Documents</a>
+<span class="text-outline-variant">/</span>
 <span>{{ data.get('title', 'Requirement') }}</span>
 {% endblock %}
 
@@ -39,7 +38,21 @@
     {% endif %}
 </div>
 
-<div class="meta">
-    <small>Created {{ document.created_at.strftime('%Y-%m-%d %H:%M') }} | Updated {{ document.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+{% if linked_tests is defined and linked_tests %}
+<div class="traceability-section">
+    <h3>Linked Acceptance Tests</h3>
+    <ul>
+        {% for item in linked_tests %}
+        <li>
+            <a href="{{ url_for('documents.detail', project_id=project.id, id=item.doc.id) }}">
+                {{ item.doc.data.get('title', item.doc.id) }}
+            </a>
+            <span class="badge">{{ item.doc.data.get('status', 'draft') }}</span>
+        </li>
+        {% endfor %}
+    </ul>
 </div>
+{% endif %}
+
+<div class="meta">Created {{ document.created_at.strftime('%Y-%m-%d %H:%M') }} &nbsp;·&nbsp; Updated {{ document.updated_at.strftime('%Y-%m-%d %H:%M') }}</div>
 {% endblock %}

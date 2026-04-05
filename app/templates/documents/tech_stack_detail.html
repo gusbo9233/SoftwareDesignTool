@@ -1,0 +1,52 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}Technology Stack - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>Technology Stack</span>
+{% endblock %}
+
+{% block project_content %}
+<div class="page-header">
+    <h1>Technology Stack</h1>
+    <div class="actions">
+        <a href="{{ url_for('documents.edit', project_id=project.id, id=document.id) }}" class="btn">Edit</a>
+        <form method="POST" action="{{ url_for('documents.delete', project_id=project.id, id=document.id) }}" class="inline-form">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this technology stack?')">Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="document-content">
+    {% if data.get('items') %}
+    <table class="data-table">
+        <thead>
+            <tr><th>Category</th><th>Technology</th><th>Version</th><th>Rationale</th><th>Alternatives</th><th>ADR Ref</th></tr>
+        </thead>
+        <tbody>
+            {% for item in data['items'] %}
+            <tr>
+                <td>{{ item.get('category', '—') | capitalize }}</td>
+                <td><strong>{{ item.get('technology', '—') }}</strong></td>
+                <td>{{ item.get('version', '—') }}</td>
+                <td>{{ item.get('rationale', '—') }}</td>
+                <td>{{ item.get('alternatives_considered', '—') }}</td>
+                <td>{{ item.get('adr_reference', '—') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">No technologies defined yet.</p>
+    {% endif %}
+</div>
+
+<div class="meta">
+    <small>Created {{ document.created_at.strftime('%Y-%m-%d %H:%M') }} | Updated {{ document.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+</div>
+{% endblock %}

@@ -1,52 +1,110 @@
 {% extends "project_layout.html" %}
 {% set active_section = "documents" %}
 
-{% block title %}Documents - {{ project.name }}{% endblock %}
+{% block title %}Documents — {{ project.name }}{% endblock %}
 
-{% block breadcrumb %}
-{{ super() }}
-<span class="breadcrumb-sep">/</span>
+{% block breadcrumb_extra %}
+<span class="text-outline-variant">/</span>
 <span>Documents</span>
 {% endblock %}
 
 {% block project_content %}
-<div class="page-header">
-    <h1>Documents</h1>
+
+<!-- Header -->
+<div class="flex items-center justify-between mb-8">
+    <div>
+        <span class="font-label text-[10px] uppercase tracking-widest text-primary mb-1.5 block">Project / Documents</span>
+        <h1 class="text-3xl font-extrabold tracking-tighter text-on-surface">Documents</h1>
+    </div>
 </div>
 
-<h3>Create New Document</h3>
-<div class="artifact-grid">
+<!-- Create New Document -->
+<h2 class="text-xs font-label font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 flex items-center gap-3">
+    <span class="h-px w-6 bg-outline-variant"></span>
+    Create New
+</h2>
+
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-10">
     {% for type_key, type_label in type_labels.items() %}
-    <a href="{{ url_for('documents.create', project_id=project.id, doc_type=type_key) }}" class="artifact-card doc-create-link">
-        <h3>{{ type_label }}</h3>
+    <a href="{{ url_for('documents.create', project_id=project.id, doc_type=type_key) }}"
+       class="group flex items-center gap-2.5 bg-surface-container-low rounded-lg px-4 py-3 hover:bg-surface-container-high hover:text-primary transition-all text-sm font-label text-on-surface-variant font-medium">
+        <span class="material-symbols-outlined text-base text-outline group-hover:text-primary transition-colors">add_circle</span>
+        {{ type_label }}
     </a>
     {% endfor %}
 </div>
 
-<h3 style="margin-top: 2rem;">Existing Documents</h3>
+<!-- Existing Documents -->
+<h2 class="text-xs font-label font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 flex items-center gap-3">
+    <span class="h-px w-6 bg-outline-variant"></span>
+    All Documents
+    <span class="font-label text-[10px] bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-sm">{{ documents | length }}</span>
+</h2>
+
 {% if documents %}
-<div class="project-list">
-    {% for doc in documents %}
-    <div class="project-card">
-        <h3>
-            <a href="{{ url_for('documents.detail', project_id=project.id, id=doc.id) }}">
-                {% if doc.type == 'user_story' %}
-                    User Story: {{ doc.data.get('user_type', 'Untitled') | capitalize }}
-                {% elif doc.type == 'requirement' %}
-                    Requirement: {{ doc.data.get('title', 'Untitled') }}
-                {% elif doc.type == 'project_plan' %}
-                    Project Plan: {{ doc.data.get('project_name', 'Untitled') }}
-                {% elif doc.type == 'test_plan' %}
-                    Test Plan: {{ doc.data.get('test_scope', 'Untitled')[:50] }}
-                {% endif %}
-            </a>
-        </h3>
-        <span class="doc-type-badge">{{ type_labels.get(doc.type, doc.type) }}</span>
-        <small>Updated {{ doc.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
-    </div>
-    {% endfor %}
+<div class="bg-surface-container-low rounded-lg overflow-hidden">
+    <table class="w-full text-left border-collapse">
+        <thead>
+            <tr class="bg-surface-container-high">
+                <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Artifact</th>
+                <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Type</th>
+                <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Updated</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for doc in documents %}
+            <tr class="hover:bg-surface-container-highest/50 transition-colors border-t" style="border-color: rgba(171,179,183,0.08);">
+                <td class="px-5 py-3">
+                    <a href="{{ url_for('documents.detail', project_id=project.id, id=doc.id) }}"
+                       class="flex items-center gap-2.5 text-sm font-medium text-on-surface hover:text-primary transition-colors">
+                        <span class="material-symbols-outlined text-sm text-secondary">description</span>
+                        {% if doc.type == 'user_story' %}
+                            User Story: {{ doc.data.get('user_type', 'Untitled') | capitalize }}
+                        {% elif doc.type == 'requirement' %}
+                            Requirement: {{ doc.data.get('title', 'Untitled') }}
+                        {% elif doc.type == 'project_plan' %}
+                            Project Plan: {{ doc.data.get('project_name', 'Untitled') }}
+                        {% elif doc.type == 'test_plan' %}
+                            Test Plan: {{ doc.data.get('test_scope', 'Untitled')[:50] }}
+                        {% elif doc.type == 'adr' %}
+                            ADR: {{ doc.data.get('title', 'Untitled') }}
+                        {% elif doc.type == 'tech_stack' %}
+                            Technology Stack ({{ doc.data.get('items', []) | length }} entries)
+                        {% elif doc.type == 'nfr' %}
+                            NFR: {{ doc.data.get('title', 'Untitled') }}
+                        {% elif doc.type == 'risk_register' %}
+                            Risk Register ({{ doc.data.get('items', []) | length }} risks)
+                        {% elif doc.type == 'domain_model' %}
+                            Domain Model: {{ doc.data.get('bounded_context_name', 'Untitled') }}
+                        {% elif doc.type == 'acceptance_test' %}
+                            Acceptance Test: {{ doc.data.get('title', 'Untitled') }}
+                        {% elif doc.type == 'external_resource' %}
+                            Resource: {{ doc.data.get('name', 'Untitled') }}
+                        {% elif doc.type == 'research' %}
+                            Research: {{ doc.data.get('title', 'Untitled') }}
+                        {% else %}
+                            {{ type_labels.get(doc.type, doc.type) }}
+                        {% endif %}
+                    </a>
+                </td>
+                <td class="px-5 py-3">
+                    <span class="font-label text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-sm bg-secondary/10 text-secondary">
+                        {{ type_labels.get(doc.type, doc.type) }}
+                    </span>
+                </td>
+                <td class="px-5 py-3 font-label text-[10px] text-on-surface-variant">
+                    {{ doc.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 {% else %}
-<p class="empty-state">No documents yet. Create one above.</p>
+<div class="flex flex-col items-center justify-center py-16 text-center bg-surface-container-low rounded-lg">
+    <span class="material-symbols-outlined text-4xl text-outline mb-4">description</span>
+    <p class="text-on-surface-variant text-sm">No documents yet. Create one above.</p>
+</div>
 {% endif %}
+
 {% endblock %}

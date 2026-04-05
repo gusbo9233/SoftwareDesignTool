@@ -1,7 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, Response
 
-from app import db
-from app.models.project import Project
 from app.services.project_service import ProjectService
 from app.export.export_service import ExportService
 

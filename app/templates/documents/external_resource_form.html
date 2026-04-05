@@ -1,0 +1,66 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}{{ "Edit" if document else "New" }} External Resource - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ "Edit" if document else "New" }} External Resource</span>
+{% endblock %}
+
+{% block project_content %}
+<h1>{{ "Edit" if document else "New" }} External Resource</h1>
+
+<form method="POST" class="form">
+    <div class="form-group">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" value="{{ data.get('name', '') }}" placeholder="Name of the resource" required>
+    </div>
+
+    <div class="form-row">
+        <div class="form-group">
+            <label for="resource_type">Type</label>
+            <select id="resource_type" name="resource_type">
+                <option value="api" {{ 'selected' if data.get('type', 'api') == 'api' }}>API</option>
+                <option value="sdk" {{ 'selected' if data.get('type') == 'sdk' }}>SDK</option>
+                <option value="service" {{ 'selected' if data.get('type') == 'service' }}>Service</option>
+                <option value="library" {{ 'selected' if data.get('type') == 'library' }}>Library</option>
+                <option value="documentation" {{ 'selected' if data.get('type') == 'documentation' }}>Documentation</option>
+                <option value="other" {{ 'selected' if data.get('type') == 'other' }}>Other</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="authentication">Authentication</label>
+            <select id="authentication" name="authentication">
+                <option value="none" {{ 'selected' if data.get('authentication', 'none') == 'none' }}>None</option>
+                <option value="api_key" {{ 'selected' if data.get('authentication') == 'api_key' }}>API Key</option>
+                <option value="oauth" {{ 'selected' if data.get('authentication') == 'oauth' }}>OAuth</option>
+                <option value="other" {{ 'selected' if data.get('authentication') == 'other' }}>Other</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="url">URL</label>
+        <input type="url" id="url" name="url" value="{{ data.get('url', '') }}" placeholder="https://...">
+    </div>
+
+    <div class="form-group">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="3" placeholder="What this resource provides and how it is used">{{ data.get('description', '') }}</textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="notes">Notes</label>
+        <textarea id="notes" name="notes" rows="2" placeholder="Rate limits, licensing, or other constraints">{{ data.get('notes', '') }}</textarea>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ "Update" if document else "Create" }}</button>
+        <a href="{{ url_for('documents.index', project_id=project.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+{% endblock %}

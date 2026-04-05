@@ -1,93 +1,62 @@
 import pytest
-from app import create_app, db
-from app.services.project_service import ProjectService
 from app.services.api_endpoint_service import APIEndpointService
 
 
-@pytest.fixture
-def app():
-    app = create_app("testing")
-    with app.app_context():
-        db.create_all()
-        yield app
-        db.session.remove()
-        db.drop_all()
-
-
-@pytest.fixture
-def client(app):
-    return app.test_client()
-
-
-@pytest.fixture
-def project_id(app):
-    with app.app_context():
-        p = ProjectService.create(name="Test Project")
-        return p.id
-
-
 class TestAPIEndpointService:
-    def test_create_endpoint(self, app, project_id):
-        with app.app_context():
-            ep = APIEndpointService.create(
-                project_id=project_id, path="/api/users", method="GET",
-                description="List all users",
-            )
-            assert ep.id is not None
-            assert ep.path == "/api/users"
-            assert ep.method == "GET"
-            assert ep.description == "List all users"
+    def test_create_endpoint(self, project_id):
+        ep = APIEndpointService.create(
+            project_id=project_id, path="/api/users", method="GET",
+            description="List all users",
+        )
+        assert ep.id is not None
+        assert ep.path == "/api/users"
+        assert ep.method == "GET"
+        assert ep.description == "List all users"
 
-    def test_create_with_schemas(self, app, project_id):
-        with app.app_context():
-            req = {"parameters": [{"name": "id", "location": "path", "type": "string"}], "body": ""}
-            resp = {"body": '{"type": "object"}', "status_codes": [{"code": "200", "description": "OK"}]}
-            ep = APIEndpointService.create(
-                project_id=project_id, path="/api/users/{id}", method="GET",
-                request_schema=req, response_schema=resp,
-            )
-            assert len(ep.request_schema["parameters"]) == 1
-            assert ep.response_schema["status_codes"][0]["code"] == "200"
+    def test_create_with_schemas(self, project_id):
+        req = {"parameters": [{"name": "id", "location": "path", "type": "string"}], "body": ""}
+        resp = {"body": '{"type": "object"}', "status_codes": [{"code": "200", "description": "OK"}]}
+        ep = APIEndpointService.create(
+            project_id=project_id, path="/api/users/{id}", method="GET",
+            request_schema=req, response_schema=resp,
+        )
+        assert len(ep.request_schema["parameters"]) == 1
+        assert ep.response_schema["status_codes"][0]["code"] == "200"
 
-    def test_get_endpoint(self, app, project_id):
-        with app.app_context():
-            created = APIEndpointService.create(
-                project_id=project_id, path="/api/items", method="POST",
-            )
-            found = APIEndpointService.get(created.id)
-            assert found is not None
-            assert found.path == "/api/items"
+    def test_get_endpoint(self, project_id):
+        created = APIEndpointService.create(
+            project_id=project_id, path="/api/items", method="POST",
+        )
+        found = APIEndpointService.get(created.id)
+        assert found is not None
+        assert found.path == "/api/items"
 
-    def test_get_nonexistent(self, app):
-        with app.app_context():
-            assert APIEndpointService.get("nonexistent") is None
+    def test_get_nonexistent(self):
+        assert APIEndpointService.get("00000000-0000-0000-0000-000000000000") is None
 
-    def test_get_all_for_project(self, app, project_id):
-        with app.app_context():
-            APIEndpointService.create(project_id=project_id, path="/api/a", method="GET")
-            APIEndpointService.create(project_id=project_id, path="/api/b", method="POST")
-            endpoints = APIEndpointService.get_all_for_project(project_id)
-            assert len(endpoints) == 2
+    def test_get_all_for_project(self, project_id):
+        APIEndpointService.create(project_id=project_id, path="/api/a", method="GET")
+        APIEndpointService.create(project_id=project_id, path="/api/b", method="POST")
+        endpoints = APIEndpointService.get_all_for_project(project_id)
+        assert len(endpoints) == 2
 
-    def test_update_endpoint(self, app, project_id):
-        with app.app_context():
-            ep = APIEndpointService.create(
-                project_id=project_id, path="/api/old", method="GET",
-            )
-            APIEndpointService.update(ep, path="/api/new", method="POST", description="Updated")
-            refreshed = APIEndpointService.get(ep.id)
-            assert refreshed.path == "/api/new"
-            assert refreshed.method == "POST"
-            assert refreshed.description == "Updated"
+    def test_update_endpoint(self, project_id):
+        ep = APIEndpointService.create(
+            project_id=project_id, path="/api/old", method="GET",
+        )
+        APIEndpointService.update(ep, path="/api/new", method="POST", description="Updated")
+        refreshed = APIEndpointService.get(ep.id)
+        assert refreshed.path == "/api/new"
+        assert refreshed.method == "POST"
+        assert refreshed.description == "Updated"
 
-    def test_delete_endpoint(self, app, project_id):
-        with app.app_context():
-            ep = APIEndpointService.create(
-                project_id=project_id, path="/api/del", method="DELETE",
-            )
-            eid = ep.id
-            APIEndpointService.delete(ep)
-            assert APIEndpointService.get(eid) is None
+    def test_delete_endpoint(self, project_id):
+        ep = APIEndpointService.create(
+            project_id=project_id, path="/api/del", method="DELETE",
+        )
+        eid = ep.id
+        APIEndpointService.delete(ep)
+        assert APIEndpointService.get(eid) is None
 
 
 class TestAPIEndpointRoutes:
@@ -129,65 +98,57 @@ class TestAPIEndpointRoutes:
         assert response.status_code == 200
         assert b"Invalid" in response.data
 
-    def test_detail(self, client, app, project_id):
-        with app.app_context():
-            ep = APIEndpointService.create(
-                project_id=project_id, path="/api/detail-test", method="GET",
-                description="Detail test endpoint",
-            )
-            eid = ep.id
-        response = client.get(f"/projects/{project_id}/api-endpoints/{eid}")
+    def test_detail(self, client, project_id):
+        ep = APIEndpointService.create(
+            project_id=project_id, path="/api/detail-test", method="GET",
+            description="Detail test endpoint",
+        )
+        response = client.get(f"/projects/{project_id}/api-endpoints/{ep.id}")
         assert response.status_code == 200
         assert b"/api/detail-test" in response.data
         assert b"Detail test endpoint" in response.data
 
     def test_detail_not_found(self, client, project_id):
         response = client.get(
-            f"/projects/{project_id}/api-endpoints/nonexistent",
+            f"/projects/{project_id}/api-endpoints/00000000-0000-0000-0000-000000000000",
             follow_redirects=True,
         )
         assert response.status_code == 200
         assert b"not found" in response.data
 
-    def test_edit_get(self, client, app, project_id):
-        with app.app_context():
-            ep = APIEndpointService.create(
-                project_id=project_id, path="/api/edit-test", method="PUT",
-            )
-            eid = ep.id
-        response = client.get(f"/projects/{project_id}/api-endpoints/{eid}/edit")
+    def test_edit_get(self, client, project_id):
+        ep = APIEndpointService.create(
+            project_id=project_id, path="/api/edit-test", method="PUT",
+        )
+        response = client.get(f"/projects/{project_id}/api-endpoints/{ep.id}/edit")
         assert response.status_code == 200
         assert b"/api/edit-test" in response.data
         assert b"Edit" in response.data
 
-    def test_edit_post(self, client, app, project_id):
-        with app.app_context():
-            ep = APIEndpointService.create(
-                project_id=project_id, path="/api/old-path", method="GET",
-            )
-            eid = ep.id
+    def test_edit_post(self, client, project_id):
+        ep = APIEndpointService.create(
+            project_id=project_id, path="/api/old-path", method="GET",
+        )
         response = client.post(
-            f"/projects/{project_id}/api-endpoints/{eid}/edit",
+            f"/projects/{project_id}/api-endpoints/{ep.id}/edit",
             data={"path": "/api/new-path", "method": "POST", "description": "Updated"},
             follow_redirects=True,
         )
         assert response.status_code == 200
         assert b"/api/new-path" in response.data
 
-    def test_delete(self, client, app, project_id):
-        with app.app_context():
-            ep = APIEndpointService.create(
-                project_id=project_id, path="/api/delete-me", method="DELETE",
-            )
-            eid = ep.id
+    def test_delete(self, client, project_id):
+        ep = APIEndpointService.create(
+            project_id=project_id, path="/api/delete-me", method="DELETE",
+        )
         response = client.post(
-            f"/projects/{project_id}/api-endpoints/{eid}/delete",
+            f"/projects/{project_id}/api-endpoints/{ep.id}/delete",
             follow_redirects=True,
         )
         assert response.status_code == 200
         assert b"/api/delete-me" not in response.data
 
-    def test_create_with_parameters(self, client, app, project_id):
+    def test_create_with_parameters(self, client, project_id):
         response = client.post(
             f"/projects/{project_id}/api-endpoints/new",
             data={
@@ -205,7 +166,7 @@ class TestAPIEndpointRoutes:
         assert response.status_code == 200
         assert b"/api/users/{id}" in response.data
 
-    def test_create_with_status_codes(self, client, app, project_id):
+    def test_create_with_status_codes(self, client, project_id):
         response = client.post(
             f"/projects/{project_id}/api-endpoints/new",
             data={
@@ -220,18 +181,16 @@ class TestAPIEndpointRoutes:
         assert response.status_code == 200
         assert b"/api/items" in response.data
 
-    def test_detail_shows_parameters(self, client, app, project_id):
-        with app.app_context():
-            ep = APIEndpointService.create(
-                project_id=project_id, path="/api/test", method="GET",
-                request_schema={
-                    "parameters": [{"name": "page", "location": "query", "type": "integer", "required": False, "description": "Page number"}],
-                    "body": "",
-                },
-                response_schema={"body": "", "status_codes": [{"code": "200", "description": "OK"}]},
-            )
-            eid = ep.id
-        response = client.get(f"/projects/{project_id}/api-endpoints/{eid}")
+    def test_detail_shows_parameters(self, client, project_id):
+        ep = APIEndpointService.create(
+            project_id=project_id, path="/api/test", method="GET",
+            request_schema={
+                "parameters": [{"name": "page", "location": "query", "type": "integer", "required": False, "description": "Page number"}],
+                "body": "",
+            },
+            response_schema={"body": "", "status_codes": [{"code": "200", "description": "OK"}]},
+        )
+        response = client.get(f"/projects/{project_id}/api-endpoints/{ep.id}")
         assert response.status_code == 200
         assert b"page" in response.data
         assert b"Page number" in response.data

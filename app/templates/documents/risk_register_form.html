@@ -1,0 +1,92 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}{{ "Edit" if document else "New" }} Risk Register - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ "Edit" if document else "New" }} Risk Register</span>
+{% endblock %}
+
+{% block project_content %}
+<h1>{{ "Edit" if document else "New" }} Risk Register</h1>
+
+<form method="POST" class="form form-wide">
+    <fieldset>
+        <legend>Risks</legend>
+        <table class="data-table" id="risks-table">
+            <thead>
+                <tr><th>Title</th><th>Category</th><th>Likelihood</th><th>Impact</th><th>Status</th><th>Owner</th><th>Mitigation</th><th>Review Date</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for risk in data.get('items', [{}]) %}
+                <tr>
+                    <td><input type="text" name="risk_title" value="{{ risk.get('title', '') }}" placeholder="Risk name"></td>
+                    <td>
+                        <select name="risk_category">
+                            <option value="technical" {{ 'selected' if risk.get('category', 'technical') == 'technical' }}>Technical</option>
+                            <option value="business" {{ 'selected' if risk.get('category') == 'business' }}>Business</option>
+                            <option value="resource" {{ 'selected' if risk.get('category') == 'resource' }}>Resource</option>
+                            <option value="external" {{ 'selected' if risk.get('category') == 'external' }}>External</option>
+                        </select>
+                    </td>
+                    <td>
+                        <select name="risk_likelihood">
+                            <option value="low" {{ 'selected' if risk.get('likelihood') == 'low' }}>Low</option>
+                            <option value="medium" {{ 'selected' if risk.get('likelihood', 'medium') == 'medium' }}>Medium</option>
+                            <option value="high" {{ 'selected' if risk.get('likelihood') == 'high' }}>High</option>
+                        </select>
+                    </td>
+                    <td>
+                        <select name="risk_impact">
+                            <option value="low" {{ 'selected' if risk.get('impact') == 'low' }}>Low</option>
+                            <option value="medium" {{ 'selected' if risk.get('impact', 'medium') == 'medium' }}>Medium</option>
+                            <option value="high" {{ 'selected' if risk.get('impact') == 'high' }}>High</option>
+                        </select>
+                    </td>
+                    <td>
+                        <select name="risk_status">
+                            <option value="open" {{ 'selected' if risk.get('status', 'open') == 'open' }}>Open</option>
+                            <option value="mitigating" {{ 'selected' if risk.get('status') == 'mitigating' }}>Mitigating</option>
+                            <option value="accepted" {{ 'selected' if risk.get('status') == 'accepted' }}>Accepted</option>
+                            <option value="closed" {{ 'selected' if risk.get('status') == 'closed' }}>Closed</option>
+                        </select>
+                    </td>
+                    <td><input type="text" name="risk_owner" value="{{ risk.get('owner', '') }}" placeholder="Owner"></td>
+                    <td><input type="text" name="risk_mitigation" value="{{ risk.get('mitigation', '') }}" placeholder="Actions taken or planned"></td>
+                    <td><input type="date" name="risk_review_date" value="{{ risk.get('review_date', '') }}"></td>
+                    <td><button type="button" class="btn btn-small btn-danger" onclick="this.closest('tr').remove()">Remove</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-small" onclick="addRiskRow()">+ Add Risk</button>
+    </fieldset>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ "Update" if document else "Create" }}</button>
+        <a href="{{ url_for('documents.index', project_id=project.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+
+<script>
+function addRiskRow() {
+    const tbody = document.querySelector('#risks-table tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+        '<td><input type="text" name="risk_title" placeholder="Risk name"></td>' +
+        '<td><select name="risk_category"><option value="technical" selected>Technical</option><option value="business">Business</option><option value="resource">Resource</option><option value="external">External</option></select></td>' +
+        '<td><select name="risk_likelihood"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></td>' +
+        '<td><select name="risk_impact"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></td>' +
+        '<td><select name="risk_status"><option value="open" selected>Open</option><option value="mitigating">Mitigating</option><option value="accepted">Accepted</option><option value="closed">Closed</option></select></td>' +
+        '<td><input type="text" name="risk_owner" placeholder="Owner"></td>' +
+        '<td><input type="text" name="risk_mitigation" placeholder="Actions taken or planned"></td>' +
+        '<td><input type="date" name="risk_review_date"></td>' +
+        '<td><button type="button" class="btn btn-small btn-danger" onclick="this.closest(\'tr\').remove()">Remove</button></td>';
+    tbody.appendChild(tr);
+}
+</script>
+{% endblock %}

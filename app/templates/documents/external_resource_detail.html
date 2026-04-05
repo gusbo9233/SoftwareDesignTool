@@ -1,0 +1,48 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}{{ data.get('name', 'External Resource') }} - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ data.get('name', 'External Resource') }}</span>
+{% endblock %}
+
+{% block project_content %}
+<div class="page-header">
+    <h1>{{ data.get('name', 'Untitled') }}</h1>
+    <div class="actions">
+        <a href="{{ url_for('documents.edit', project_id=project.id, id=document.id) }}" class="btn">Edit</a>
+        <form method="POST" action="{{ url_for('documents.delete', project_id=project.id, id=document.id) }}" class="inline-form">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this external resource?')">Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="document-content">
+    <table class="detail-table">
+        <tr><th>Type</th><td>{{ data.get('type', 'api') | upper }}</td></tr>
+        <tr><th>Authentication</th><td>{{ data.get('authentication', 'none') | replace('_', ' ') | capitalize }}</td></tr>
+        {% if data.get('url') %}
+        <tr><th>URL</th><td><a href="{{ data.url }}" target="_blank" rel="noopener">{{ data.url }}</a></td></tr>
+        {% endif %}
+    </table>
+
+    {% if data.get('description') %}
+    <h3>Description</h3>
+    <p>{{ data.description }}</p>
+    {% endif %}
+
+    {% if data.get('notes') %}
+    <h3>Notes</h3>
+    <p>{{ data.notes }}</p>
+    {% endif %}
+</div>
+
+<div class="meta">
+    <small>Created {{ document.created_at.strftime('%Y-%m-%d %H:%M') }} | Updated {{ document.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+</div>
+{% endblock %}

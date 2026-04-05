@@ -5,20 +5,154 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Software Design Tool{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- Google Fonts: Inter & Space Grotesk -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Material Symbols -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #eaeff1; }
+        ::-webkit-scrollbar-thumb { background: #abb3b7; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #737c7f; }
+        {% block extra_styles %}{% endblock %}
+    </style>
+    <script id="tailwind-config">
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "secondary-container": "#d4e3ff",
+                        "error-container": "#fe8983",
+                        "on-secondary-fixed": "#2a4060",
+                        "on-tertiary-fixed-variant": "#466370",
+                        "on-secondary-fixed-variant": "#465c7d",
+                        "on-surface-variant": "#586064",
+                        "primary-container": "#d6e3ff",
+                        "on-primary-container": "#00519e",
+                        "on-background": "#2b3437",
+                        "primary": "#005db5",
+                        "primary-fixed": "#d6e3ff",
+                        "surface-container": "#eaeff1",
+                        "surface-bright": "#f8f9fa",
+                        "surface-container-low": "#f1f4f6",
+                        "secondary-dim": "#3e5475",
+                        "on-tertiary-container": "#3c5966",
+                        "tertiary": "#466370",
+                        "surface-container-highest": "#dbe4e7",
+                        "secondary": "#4a6081",
+                        "outline": "#737c7f",
+                        "on-surface": "#2b3437",
+                        "on-primary-fixed": "#003f7d",
+                        "inverse-surface": "#0c0f10",
+                        "error": "#9f403d",
+                        "surface": "#f8f9fa",
+                        "surface-dim": "#d1dce0",
+                        "secondary-fixed": "#d4e3ff",
+                        "on-secondary-container": "#3d5373",
+                        "on-primary-fixed-variant": "#005bb0",
+                        "on-primary": "#f6f7ff",
+                        "tertiary-dim": "#3a5764",
+                        "primary-dim": "#0052a0",
+                        "on-error-container": "#752121",
+                        "surface-container-lowest": "#ffffff",
+                        "error-dim": "#4e0309",
+                        "background": "#f8f9fa",
+                        "secondary-fixed-dim": "#bfd6fc",
+                        "primary-fixed-dim": "#bfd5ff",
+                        "on-error": "#fff7f6",
+                        "outline-variant": "#abb3b7",
+                        "on-secondary": "#f8f8ff",
+                        "tertiary-container": "#ceedfd",
+                        "surface-container-high": "#e3e9ec",
+                        "tertiary-fixed-dim": "#c0dfee",
+                        "inverse-on-surface": "#9b9d9e",
+                        "on-tertiary-fixed": "#2a4753",
+                        "tertiary-fixed": "#ceedfd",
+                        "on-tertiary": "#f3faff",
+                        "surface-variant": "#dbe4e7",
+                        "surface-tint": "#005db5",
+                        "inverse-primary": "#5f9efb"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.125rem",
+                        "sm": "0.125rem",
+                        "md": "0.25rem",
+                        "lg": "0.375rem",
+                        "xl": "0.5rem",
+                        "full": "9999px"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter", "sans-serif"],
+                        "body": ["Inter", "sans-serif"],
+                        "label": ["Space Grotesk", "sans-serif"]
+                    }
+                },
+            },
+        }
+    </script>
 </head>
-<body>
-    <nav class="navbar">
-        <a href="{{ url_for('projects.index') }}" class="nav-brand">Software Design Tool</a>
-    </nav>
-    <main class="container">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
+<body class="bg-surface font-body text-on-surface antialiased">
+
+<!-- Top Navigation Bar -->
+<header class="bg-surface-container-low border-b-0 flex justify-between items-center w-full px-6 py-3 h-14 fixed top-0 z-50">
+    <div class="flex items-center gap-8">
+        <a href="{{ url_for('projects.index') }}" class="font-label font-bold text-base text-on-surface tracking-tight hover:text-primary transition-colors">
+            Software Design Tool
+        </a>
+        <nav class="hidden md:flex items-center gap-6 font-body text-sm tracking-tight">
+            <a href="{{ url_for('projects.index') }}" class="text-on-surface-variant hover:text-on-surface transition-colors {% block nav_active_dashboard %}{% endblock %}">Projects</a>
+        </nav>
+    </div>
+    <div class="flex items-center gap-2">
+        {% block nav_actions %}{% endblock %}
+    </div>
+</header>
+
+<!-- Main Content -->
+<main class="pt-14 {% block main_class %}{% endblock %}">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="fixed top-14 left-0 right-0 z-40 px-6 py-2 space-y-1">
                 {% for category, message in messages %}
-                    <div class="flash flash-{{ category }}">{{ message }}</div>
+                    <div class="flex items-center gap-2 px-4 py-2 rounded-sm text-sm font-label
+                        {% if category == 'error' %}bg-error-container text-on-error-container{% else %}bg-primary-container text-on-primary-container{% endif %}">
+                        <span class="material-symbols-outlined text-base">
+                            {% if category == 'error' %}error{% else %}check_circle{% endif %}
+                        </span>
+                        {{ message }}
+                    </div>
                 {% endfor %}
-            {% endif %}
-        {% endwith %}
-        {% block content %}{% endblock %}
-    </main>
+            </div>
+        {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+</main>
+
+<!-- Bottom Status Bar -->
+<footer class="fixed bottom-0 left-0 right-0 bg-surface-container-low px-6 h-7 flex items-center justify-between z-40">
+    <div class="flex items-center gap-4">
+        <div class="flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+            <span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Ready</span>
+        </div>
+    </div>
+    <span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Software Design Tool</span>
+</footer>
+
+{% block extra_scripts %}{% endblock %}
 </body>
 </html>

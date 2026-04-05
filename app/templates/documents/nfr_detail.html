@@ -1,0 +1,47 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}NFR: {{ data.get('title', '') }} - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ data.get('title', 'NFR') }}</span>
+{% endblock %}
+
+{% block project_content %}
+<div class="page-header">
+    <h1>NFR: {{ data.get('title', 'Untitled') }}</h1>
+    <div class="actions">
+        <a href="{{ url_for('documents.edit', project_id=project.id, id=document.id) }}" class="btn">Edit</a>
+        <form method="POST" action="{{ url_for('documents.delete', project_id=project.id, id=document.id) }}" class="inline-form">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this NFR?')">Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="document-content">
+    <table class="detail-table">
+        <tr><th>Category</th><td>{{ data.get('category', 'performance') | capitalize }}</td></tr>
+        <tr><th>Priority</th><td>{{ data.get('priority', 'should') | capitalize }}</td></tr>
+        <tr><th>Status</th><td>{{ data.get('status', 'draft') | capitalize }}</td></tr>
+        {% if data.get('verification_method') %}
+        <tr><th>Verification</th><td>{{ data.verification_method }}</td></tr>
+        {% endif %}
+    </table>
+
+    <h3>Description</h3>
+    <p>{{ data.get('description', '—') }}</p>
+
+    {% if data.get('rationale') %}
+    <h3>Rationale</h3>
+    <p>{{ data.rationale }}</p>
+    {% endif %}
+</div>
+
+<div class="meta">
+    <small>Created {{ document.created_at.strftime('%Y-%m-%d %H:%M') }} | Updated {{ document.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+</div>
+{% endblock %}

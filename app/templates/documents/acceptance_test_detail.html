@@ -1,0 +1,123 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}Acceptance Test: {{ data.get('title', '') }} - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ data.get('title', 'Acceptance Test') }}</span>
+{% endblock %}
+
+{% block project_content %}
+<div class="page-header">
+    <h1>Acceptance Test: {{ data.get('title', 'Untitled') }}</h1>
+    <div class="actions">
+        <a href="{{ url_for('documents.edit', project_id=project.id, id=document.id) }}" class="btn">Edit</a>
+        <form method="POST" action="{{ url_for('documents.delete', project_id=project.id, id=document.id) }}" class="inline-form">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this acceptance test?')">Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="document-content">
+    <table class="detail-table">
+        <tr><th>Status</th><td>{{ data.get('status', 'draft') | capitalize }}</td></tr>
+        {% if data.get('requirement_reference') %}
+        <tr><th>Requirement Ref</th><td>{{ data.requirement_reference }}</td></tr>
+        {% endif %}
+        {% if data.get('user_story_reference') %}
+        <tr><th>User Story Ref</th><td>{{ data.user_story_reference }}</td></tr>
+        {% endif %}
+    </table>
+
+    {% if data.get('preconditions') %}
+    <h3>Preconditions</h3>
+    <p>{{ data.preconditions }}</p>
+    {% endif %}
+
+    {% if data.get('steps') %}
+    <h3>Steps</h3>
+    <ol>
+        {% for step in data.steps %}
+        <li>{{ step }}</li>
+        {% endfor %}
+    </ol>
+    {% endif %}
+
+    <h3>Expected Result</h3>
+    <p>{{ data.get('expected_result', '—') }}</p>
+
+    {% if data.get('notes') %}
+    <h3>Notes</h3>
+    <p>{{ data.notes }}</p>
+    {% endif %}
+</div>
+
+<div class="traceability-section">
+    <h3>Traceability Links</h3>
+
+    {% if linked_docs %}
+    <table class="data-table">
+        <thead><tr><th>Type</th><th>Document</th><th></th></tr></thead>
+        <tbody>
+            {% for item in linked_docs %}
+            <tr>
+                <td>{{ item.source_type | replace('_', ' ') | capitalize }}</td>
+                <td>
+                    <a href="{{ url_for('documents.detail', project_id=project.id, id=item.doc.id) }}">
+                        {% if item.source_type == 'requirement' %}
+                            {{ item.doc.data.get('title', 'Untitled') }}
+                        {% else %}
+                            User Story: {{ item.doc.data.get('user_type', 'Untitled') | capitalize }}
+                        {% endif %}
+                    </a>
+                </td>
+                <td>
+                    <form method="POST" action="{{ url_for('documents.delete_traceability_link', project_id=project.id, link_id=item.link_id) }}" class="inline-form">
+                        <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Remove this link?')">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">No traceability links yet.</p>
+    {% endif %}
+
+    <h4>Add Link</h4>
+    <form method="POST" action="{{ url_for('documents.add_traceability_link', project_id=project.id) }}" class="form form-inline">
+        <input type="hidden" name="acceptance_test_id" value="{{ document.id }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="requirement_id">Requirement</label>
+                <select id="requirement_id" name="requirement_id">
+                    <option value="">— none —</option>
+                    {% for req in requirements %}
+                    <option value="{{ req.id }}">{{ req.data.get('title', req.id) }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="user_story_id">User Story</label>
+                <select id="user_story_id" name="user_story_id">
+                    <option value="">— none —</option>
+                    {% for us in user_stories %}
+                    <option value="{{ us.id }}">{{ us.data.get('user_type', '') | capitalize }}: {{ us.data.get('action', us.id) }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="align-self: flex-end;">
+                <button type="submit" class="btn btn-primary">Add Link</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="meta">
+    <small>Created {{ document.created_at.strftime('%Y-%m-%d %H:%M') }} | Updated {{ document.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+</div>
+{% endblock %}
