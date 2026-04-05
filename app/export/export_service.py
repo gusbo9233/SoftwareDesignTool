@@ -3,6 +3,8 @@ from app.services.document_service import DocumentService
 from app.services.diagram_service import DiagramService
 from app.services.api_endpoint_service import APIEndpointService
 from app.services.traceability_service import TraceabilityService
+from app.services.test_result_service import TestResultService
+from app.services.git_connection_service import GitConnectionService
 
 
 class ExportService:
@@ -172,6 +174,24 @@ class ExportService:
 
         traceability = TraceabilityService.get_traceability_map(project_id)
 
+        # CI status from GitHub integration
+        ci_status = None
+        git_conn = GitConnectionService.get_for_project(project_id)
+        if git_conn:
+            runs = TestResultService.get_runs_for_project(project_id, limit=1)
+            if runs:
+                latest = runs[0]
+                ci_status = {
+                    "repo": f"{git_conn.repo_owner}/{git_conn.repo_name}",
+                    "branch": latest.branch,
+                    "last_run_conclusion": latest.conclusion,
+                    "last_run_date": str(latest.created_at) if latest.created_at else None,
+                    "total_tests": latest.total_tests,
+                    "passed": latest.passed,
+                    "failed": latest.failed,
+                    "skipped": latest.skipped,
+                }
+
         return {
             "project": project.name,
             "description": project.description or "",
@@ -190,6 +210,7 @@ class ExportService:
             "diagrams": diagram_list,
             "api_endpoints": api_list,
             "traceability": traceability,
+            "ci_status": ci_status,
         }
 
     @staticmethod
@@ -478,6 +499,19 @@ class ExportService:
                 req_ids = ", ".join(entry["requirement_ids"]) or "—"
                 us_ids = ", ".join(entry["user_story_ids"]) or "—"
                 lines.append(f"| {entry['acceptance_test_id']} | {req_ids} | {us_ids} |")
+            lines.append("")
+
+        # CI Status
+        if data.get("ci_status"):
+            ci = data["ci_status"]
+            lines.append("\n## CI Status\n")
+            lines.append(f"- **Repository:** {ci['repo']}")
+            lines.append(f"- **Branch:** {ci['branch']}")
+            lines.append(f"- **Last Run:** {ci['last_run_conclusion'] or 'unknown'}")
+            if ci.get("last_run_date"):
+                lines.append(f"- **Date:** {ci['last_run_date']}")
+            if ci.get("total_tests") is not None:
+                lines.append(f"- **Tests:** {ci['passed'] or 0} passed, {ci['failed'] or 0} failed, {ci['skipped'] or 0} skipped ({ci['total_tests']} total)")
             lines.append("")
 
         # Filter out empty strings from conditional lines

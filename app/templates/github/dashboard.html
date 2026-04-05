@@ -1,0 +1,234 @@
+{% extends "project_layout.html" %}
+{% set active_section = "github" %}
+
+{% block title %}GitHub — {{ project.name }}{% endblock %}
+
+{% block breadcrumb_extra %}
+    <span class="text-outline-variant">/</span>
+    <span>GitHub</span>
+{% endblock %}
+
+{% block project_content %}
+
+<!-- Header -->
+<div class="flex items-start justify-between mb-8">
+    <div>
+        <span class="font-label text-[10px] uppercase tracking-widest text-primary mb-1.5 block">GitHub Integration</span>
+        <h1 class="text-2xl font-extrabold tracking-tighter text-on-surface">
+            {{ connection.repo_owner }}/{{ connection.repo_name }}
+        </h1>
+        <span class="font-label text-[10px] text-outline mt-1 block">
+            Branch: {{ connection.default_branch }}
+            {% if connection.last_synced_at %}
+            &nbsp;&middot;&nbsp; Last synced: {{ connection.last_synced_at.strftime('%Y-%m-%d %H:%M') if connection.last_synced_at is not none else 'Never' }}
+            {% endif %}
+        </span>
+    </div>
+    <div class="flex items-center gap-2 shrink-0">
+        <button id="sync-btn" onclick="syncGitHub()"
+                class="inline-flex items-center gap-1.5 bg-gradient-to-br from-primary to-primary-dim text-on-primary px-4 py-2 rounded-sm font-semibold text-xs font-label hover:brightness-110 active:scale-95 transition-all shadow-sm">
+            <span class="material-symbols-outlined text-sm">sync</span>
+            Sync Now
+        </button>
+        <a href="{{ url_for('github.settings', project_id=project.id) }}"
+           class="inline-flex items-center gap-1.5 bg-surface-container text-on-surface px-4 py-2 rounded-sm font-semibold text-xs font-label hover:bg-surface-container-high transition-colors">
+            <span class="material-symbols-outlined text-sm">settings</span>
+            Settings
+        </a>
+    </div>
+</div>
+
+{% if error_msg %}
+<div class="mb-6 px-4 py-3 bg-error-container/20 border border-error/20 rounded-sm text-sm text-error">
+    <span class="material-symbols-outlined text-sm align-middle mr-1">warning</span>
+    {{ error_msg }}
+</div>
+{% endif %}
+
+<!-- Sync notification -->
+<div id="sync-notification" class="mb-6 px-4 py-3 bg-primary-container rounded-sm text-sm text-on-primary-container hidden">
+    <span class="material-symbols-outlined text-sm align-middle mr-1">check_circle</span>
+    <span id="sync-message"></span>
+</div>
+
+<!-- Test Runs Section -->
+<h2 class="text-xs font-label font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 flex items-center gap-3">
+    <span class="h-px w-6 bg-outline-variant"></span>
+    CI Test Runs
+</h2>
+
+{% if test_runs %}
+<div class="bg-surface-container-low rounded-lg overflow-hidden mb-8">
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="border-b border-outline-variant/15">
+                <th class="text-left px-4 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Status</th>
+                <th class="text-left px-4 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Branch</th>
+                <th class="text-left px-4 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Commit</th>
+                <th class="text-left px-4 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Tests</th>
+                <th class="text-left px-4 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Duration</th>
+                <th class="text-left px-4 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in test_runs %}
+            <tr class="border-b border-outline-variant/10 hover:bg-surface-container transition-colors">
+                <td class="px-4 py-3">
+                    {% if run.conclusion == 'success' %}
+                        <span class="inline-flex items-center gap-1 text-green-600 font-label text-xs font-semibold">
+                            <span class="w-2 h-2 rounded-full bg-green-500"></span> Passed
+                        </span>
+                    {% elif run.conclusion == 'failure' %}
+                        <span class="inline-flex items-center gap-1 text-error font-label text-xs font-semibold">
+                            <span class="w-2 h-2 rounded-full bg-error"></span> Failed
+                        </span>
+                    {% elif run.status == 'in_progress' %}
+                        <span class="inline-flex items-center gap-1 text-yellow-600 font-label text-xs font-semibold">
+                            <span class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span> Running
+                        </span>
+                    {% else %}
+                        <span class="inline-flex items-center gap-1 text-outline font-label text-xs">
+                            <span class="w-2 h-2 rounded-full bg-outline"></span> {{ run.conclusion or run.status }}
+                        </span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3 font-label text-xs text-on-surface">{{ run.branch }}</td>
+                <td class="px-4 py-3">
+                    <code class="text-xs text-on-surface-variant bg-surface-container px-1.5 py-0.5 rounded-sm">{{ run.commit_sha[:7] }}</code>
+                </td>
+                <td class="px-4 py-3 font-label text-xs text-on-surface">
+                    {% if run.total_tests is not none %}
+                        <span class="text-green-600">{{ run.passed or 0 }}</span>
+                        {% if run.failed %}<span class="text-error"> / {{ run.failed }} failed</span>{% endif %}
+                        {% if run.skipped %}<span class="text-outline"> / {{ run.skipped }} skipped</span>{% endif %}
+                        <span class="text-outline"> ({{ run.total_tests }} total)</span>
+                    {% else %}
+                        <span class="text-outline">—</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3 font-label text-xs text-on-surface-variant">
+                    {% if run.duration_seconds is not none %}
+                        {{ "%.1f"|format(run.duration_seconds) }}s
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3">
+                    <a href="{{ run.run_url }}" target="_blank" rel="noopener"
+                       class="text-xs text-primary hover:underline font-label">
+                        View on GitHub
+                        <span class="material-symbols-outlined text-xs align-middle">open_in_new</span>
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="bg-surface-container-low rounded-lg px-6 py-8 text-center mb-8">
+    <span class="material-symbols-outlined text-3xl text-outline-variant mb-2 block">science</span>
+    <p class="text-sm text-on-surface-variant">No test runs synced yet. Click <strong>Sync Now</strong> to fetch CI data.</p>
+</div>
+{% endif %}
+
+
+<!-- Recent Commits Section -->
+<h2 class="text-xs font-label font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 flex items-center gap-3">
+    <span class="h-px w-6 bg-outline-variant"></span>
+    Recent Commits
+</h2>
+
+{% if commits %}
+<div class="bg-surface-container-low rounded-lg overflow-hidden mb-8">
+    <div class="divide-y divide-outline-variant/10">
+        {% for commit in commits[:20] %}
+        <div class="px-4 py-3 flex items-start gap-3 hover:bg-surface-container transition-colors">
+            <div class="shrink-0 mt-0.5">
+                <img src="{{ commit.author.avatar_url if commit.author else '' }}" alt="" class="w-6 h-6 rounded-full bg-surface-container">
+            </div>
+            <div class="min-w-0 flex-1">
+                <p class="text-sm text-on-surface truncate">{{ commit.commit.message.split('\n')[0] }}</p>
+                <div class="flex items-center gap-2 mt-0.5">
+                    <code class="text-[10px] text-on-surface-variant bg-surface-container px-1 py-0.5 rounded-sm">{{ commit.sha[:7] }}</code>
+                    <span class="text-[10px] text-outline">{{ commit.commit.author.name }}</span>
+                    <span class="text-[10px] text-outline">{{ commit.commit.author.date[:10] }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="bg-surface-container-low rounded-lg px-6 py-8 text-center mb-8">
+    <p class="text-sm text-on-surface-variant">No commits found.</p>
+</div>
+{% endif %}
+
+
+<!-- Open Pull Requests Section -->
+<h2 class="text-xs font-label font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 flex items-center gap-3">
+    <span class="h-px w-6 bg-outline-variant"></span>
+    Open Pull Requests
+</h2>
+
+{% if pulls %}
+<div class="bg-surface-container-low rounded-lg overflow-hidden mb-8">
+    <div class="divide-y divide-outline-variant/10">
+        {% for pr in pulls %}
+        <div class="px-4 py-3 flex items-center gap-3 hover:bg-surface-container transition-colors">
+            <span class="material-symbols-outlined text-green-600 text-base">merge</span>
+            <div class="min-w-0 flex-1">
+                <a href="{{ pr.html_url }}" target="_blank" rel="noopener" class="text-sm text-on-surface hover:text-primary transition-colors">
+                    {{ pr.title }}
+                    <span class="text-outline font-label text-xs">#{{ pr.number }}</span>
+                </a>
+                <div class="flex items-center gap-2 mt-0.5">
+                    <span class="text-[10px] text-outline">{{ pr.user.login }}</span>
+                    <span class="text-[10px] text-outline">{{ pr.head.ref }} &rarr; {{ pr.base.ref }}</span>
+                    <span class="text-[10px] text-outline">{{ pr.created_at[:10] }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="bg-surface-container-low rounded-lg px-6 py-8 text-center mb-8">
+    <p class="text-sm text-on-surface-variant">No open pull requests.</p>
+</div>
+{% endif %}
+
+<script>
+async function syncGitHub() {
+    const btn = document.getElementById('sync-btn');
+    const notification = document.getElementById('sync-notification');
+    const msgEl = document.getElementById('sync-message');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">sync</span> Syncing...';
+
+    try {
+        const resp = await fetch('{{ url_for("github.sync", project_id=project.id) }}', { method: 'POST' });
+        const data = await resp.json();
+        if (resp.ok) {
+            msgEl.textContent = data.message;
+            notification.classList.remove('hidden');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            msgEl.textContent = 'Sync failed: ' + (data.error || 'Unknown error');
+            notification.classList.remove('hidden');
+            notification.classList.replace('bg-primary-container', 'bg-error-container/20');
+            notification.classList.replace('text-on-primary-container', 'text-error');
+        }
+    } catch (e) {
+        msgEl.textContent = 'Network error during sync.';
+        notification.classList.remove('hidden');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-symbols-outlined text-sm">sync</span> Sync Now';
+    }
+}
+</script>
+
+{% endblock %}

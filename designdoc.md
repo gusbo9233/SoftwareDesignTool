@@ -318,6 +318,47 @@ Fields per endpoint:
 | Response Body | JSON schema |
 | Status Codes | Expected responses |
 
+### 5.5 GitHub Integration
+
+Connects the tool to a GitHub repository to pull in code context, commit history, pull requests, CI workflow runs, and test results. This turns the design tool into a live dashboard that bridges design artifacts and implementation status.
+
+#### Integration Approach
+
+**Direct API polling** is the primary method — the backend calls GitHub REST API endpoints on demand or on a configurable schedule using a Personal Access Token (fine-grained) or GitHub App installation token.
+
+**Webhook listener** is a secondary, optional enhancement for real-time updates (push, pull_request, workflow_run events).
+
+#### Capabilities
+
+| Capability | GitHub API Endpoint | Permission (Fine-Grained) |
+|---|---|---|
+| Browse repository files | `GET /repos/{owner}/{repo}/contents/{path}` | Contents: read |
+| List commits | `GET /repos/{owner}/{repo}/commits` | Contents: read |
+| List pull requests | `GET /repos/{owner}/{repo}/pulls` | Pull requests: read |
+| List workflow runs | `GET /repos/{owner}/{repo}/actions/runs` | Actions: read |
+| Download run logs | `GET /repos/{owner}/{repo}/actions/runs/{id}/logs` | Actions: read |
+| List/download artifacts | `GET /repos/{owner}/{repo}/actions/runs/{id}/artifacts` | Actions: read |
+
+#### Authentication
+
+- **Fine-grained PAT** (recommended for single-user): scoped to one repository with minimal read permissions. Stored as an environment variable or in the database (encrypted).
+- **GitHub App** (optional, for richer integration): allows Checks API write access and higher rate limits. Requires JWT-based token exchange.
+- **Rate limits:** 5,000 requests/hour per token. The backend must cache responses, use conditional requests (ETags), and implement exponential backoff.
+
+#### Test Result Extraction
+
+CI workflows produce a JUnit XML report (`pytest --junitxml=reports/results.xml`) uploaded as a GitHub Actions artifact. The backend:
+
+1. Lists workflow runs for the connected repository
+2. Finds the latest completed run for a given branch
+3. Downloads the test-results artifact ZIP
+4. Parses the JUnit XML to extract pass/fail counts, failure messages, and durations
+5. Stores parsed results in the `TestRun` / `TestResult` tables
+
+#### Webhook Listener (Optional)
+
+A Flask route (`POST /api/webhooks/github`) receives GitHub webhook payloads. Validates the `X-Hub-Signature-256` header against a shared secret. On `workflow_run.completed` events, triggers automatic artifact fetch and test result parsing.
+
 ---
 
 ## 6. Data Model
@@ -364,6 +405,56 @@ Fields per endpoint:
 | description | Text |
 | request_schema | JSON |
 | response_schema | JSON |
+
+#### GitConnection
+Configuration for linking a project to a GitHub repository.
+
+| Column | Type |
+|---|---|
+| id | UUID (PK) |
+| project_id | UUID (FK → Project, unique) |
+| repo_owner | String |
+| repo_name | String |
+| default_branch | String (default: "main") |
+| auth_token_encrypted | Text |
+| webhook_secret | String (nullable) |
+| polling_enabled | Boolean (default: true) |
+| last_synced_at | DateTime (nullable) |
+| created_at | DateTime |
+
+#### TestRun
+A single CI workflow execution, linked to a project via its git connection.
+
+| Column | Type |
+|---|---|
+| id | UUID (PK) |
+| project_id | UUID (FK → Project) |
+| github_run_id | BigInteger (unique) |
+| branch | String |
+| commit_sha | String |
+| status | Enum: queued, in_progress, completed |
+| conclusion | Enum: success, failure, cancelled, skipped (nullable) |
+| total_tests | Integer (nullable) |
+| passed | Integer (nullable) |
+| failed | Integer (nullable) |
+| skipped | Integer (nullable) |
+| duration_seconds | Float (nullable) |
+| run_url | String |
+| created_at | DateTime |
+
+#### TestResult
+Individual test case results parsed from JUnit XML artifacts.
+
+| Column | Type |
+|---|---|
+| id | UUID (PK) |
+| test_run_id | UUID (FK → TestRun) |
+| test_name | String |
+| class_name | String (nullable) |
+| status | Enum: passed, failed, error, skipped |
+| duration_seconds | Float (nullable) |
+| failure_message | Text (nullable) |
+| failure_output | Text (nullable) |
 
 #### RequirementTestLink
 Traceability table connecting requirements and user stories to acceptance test specifications.
@@ -686,6 +777,25 @@ Implements all document types identified in the second design review. Builds on 
 10. Add Pydantic schemas for all new document types.
 11. Extend `ExportService` to include all new document types in the LLM export output.
 12. Write unit tests for CRUD operations and Pydantic validation for each new document type. Write an integration test for the traceability link (create requirement → create acceptance test → link them → verify export includes the link).
+
+### Phase 8 — GitHub Integration & CI Dashboard
+
+Connects the tool to a GitHub repository for live visibility into code, commits, PRs, and test results. Builds on the data layer from Phase 1 and the UI patterns from Phase 6.
+
+1. Create `GitConnection` ORM model and migration. Implement a settings page per project where the user enters repository owner, name, and a personal access token. Token is stored encrypted (use `cryptography.fernet`). Add Pydantic schema.
+2. Implement `GitHubService` — a service class that wraps GitHub REST API calls using `httpx` (async-capable). Methods: `list_commits(branch, page)`, `list_pulls(state)`, `list_workflow_runs(branch)`, `download_artifact(artifact_id)`. All methods accept a `GitConnection` and handle authentication headers, pagination, and rate-limit backoff (respect `X-RateLimit-Remaining` / `Retry-After` headers).
+3. Create `TestRun` and `TestResult` ORM models and migration. Add Pydantic schemas.
+4. Implement `TestResultService` — fetches the latest workflow run artifacts, downloads the JUnit XML ZIP, parses it (use `xml.etree.ElementTree`), and upserts `TestRun` + `TestResult` records. Parsing must handle the standard JUnit XML schema (`<testsuite>`, `<testcase>`, `<failure>`, `<error>`, `<skipped>`).
+5. Add route `POST /api/projects/<id>/github/sync` that triggers a full sync: fetches latest commits, PRs, and workflow runs, then downloads and parses test artifacts. Returns a summary JSON.
+6. Add route `GET /api/projects/<id>/github/commits` — returns recent commits (proxied from GitHub with caching).
+7. Add route `GET /api/projects/<id>/github/pulls` — returns open PRs.
+8. Add route `GET /api/projects/<id>/github/test-runs` — returns stored test runs with pass/fail summary.
+9. Add route `GET /api/projects/<id>/github/test-runs/<run_id>` — returns individual test results for a run.
+10. Create a **GitHub Dashboard** Jinja template page accessible from the project sidebar. Sections: repository info, recent commits (last 20), open PRs, latest test runs with pass/fail badge. Each test run is expandable to show individual test results with failure messages.
+11. *(Optional)* Implement webhook receiver: `POST /api/webhooks/github` — validates `X-Hub-Signature-256`, handles `workflow_run.completed` events by triggering `TestResultService` for the completed run. Add webhook secret to `GitConnection`.
+12. Create `.github/workflows/ci.yml` template that users can copy into their repo. The workflow runs `pytest --junitxml=reports/results.xml` and uploads the report via `actions/upload-artifact`.
+13. Write unit tests: mock GitHub API responses (use `respx` or `responses` library), test JUnit XML parsing with sample fixtures, test sync flow end-to-end with mocked HTTP.
+14. Extend `ExportService` to include latest test run summary (pass/fail counts, last run date) in the LLM export output under a `ci_status` key.
 
 ### Phase 6 — Polish & Integration
 

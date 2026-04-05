@@ -23,9 +23,11 @@ def create_app(config_name="default"):
     from app.routes.documents import documents_bp
     from app.routes.diagrams import diagrams_bp
     from app.routes.api_endpoints import api_endpoints_bp
+    from app.routes.github import github_bp
     app.register_blueprint(projects_bp)
     app.register_blueprint(documents_bp)
     app.register_blueprint(diagrams_bp)
     app.register_blueprint(api_endpoints_bp)
+    app.register_blueprint(github_bp)
 
     return app

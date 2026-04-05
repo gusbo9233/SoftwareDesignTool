@@ -76,6 +76,15 @@
                     </span>
                     <span class="font-label text-[10px] bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-sm">{{ project.api_endpoints | length }}</span>
                 </a>
+
+                <a href="{{ url_for('github.dashboard', project_id=project.id) }}"
+                   class="flex items-center justify-between px-3 py-2 rounded-sm text-sm font-label transition-colors
+                   {% if active_section == 'github' %}bg-surface-bright text-primary border-l-2 border-primary pl-2.5{% else %}text-on-surface-variant hover:text-on-surface hover:bg-surface-container{% endif %}">
+                    <span class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-base">code</span>
+                        GitHub
+                    </span>
+                </a>
             </nav>
 
             <!-- Divider -->

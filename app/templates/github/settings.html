@@ -1,0 +1,107 @@
+{% extends "project_layout.html" %}
+{% set active_section = "github" %}
+
+{% block title %}GitHub Settings — {{ project.name }}{% endblock %}
+
+{% block breadcrumb_extra %}
+    <span class="text-outline-variant">/</span>
+    <span>GitHub Settings</span>
+{% endblock %}
+
+{% block project_content %}
+
+<div class="max-w-2xl">
+
+    <!-- Header -->
+    <div class="mb-8">
+        <span class="font-label text-[10px] uppercase tracking-widest text-primary mb-1.5 block">GitHub Integration</span>
+        <h1 class="text-2xl font-extrabold tracking-tighter text-on-surface">Repository Connection</h1>
+        <p class="text-on-surface-variant text-sm mt-2 leading-relaxed">
+            Connect a GitHub repository to view commits, pull requests, and CI test results.
+        </p>
+    </div>
+
+    <!-- Form -->
+    <form method="POST" class="space-y-6">
+
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label for="repo_owner" class="block font-label text-xs font-semibold uppercase tracking-widest text-on-surface-variant mb-1.5">
+                    Repository Owner
+                </label>
+                <input type="text" id="repo_owner" name="repo_owner"
+                       value="{{ connection.repo_owner if connection else '' }}"
+                       placeholder="e.g. octocat"
+                       class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-sm text-sm text-on-surface placeholder-outline focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                       required>
+            </div>
+            <div>
+                <label for="repo_name" class="block font-label text-xs font-semibold uppercase tracking-widest text-on-surface-variant mb-1.5">
+                    Repository Name
+                </label>
+                <input type="text" id="repo_name" name="repo_name"
+                       value="{{ connection.repo_name if connection else '' }}"
+                       placeholder="e.g. my-project"
+                       class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-sm text-sm text-on-surface placeholder-outline focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                       required>
+            </div>
+        </div>
+
+        <div>
+            <label for="default_branch" class="block font-label text-xs font-semibold uppercase tracking-widest text-on-surface-variant mb-1.5">
+                Default Branch
+            </label>
+            <input type="text" id="default_branch" name="default_branch"
+                   value="{{ connection.default_branch if connection else 'main' }}"
+                   class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-sm text-sm text-on-surface placeholder-outline focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary">
+        </div>
+
+        <div>
+            <label for="auth_token" class="block font-label text-xs font-semibold uppercase tracking-widest text-on-surface-variant mb-1.5">
+                Personal Access Token
+                {% if connection %}
+                <span class="normal-case tracking-normal font-normal text-outline">(leave blank to keep current)</span>
+                {% endif %}
+            </label>
+            <input type="password" id="auth_token" name="auth_token"
+                   placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                   class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-sm text-sm text-on-surface placeholder-outline focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                   {% if not connection %}required{% endif %}>
+            <p class="mt-1 text-xs text-outline">Fine-grained token with Contents (read), Pull requests (read), and Actions (read) permissions.</p>
+        </div>
+
+        <div>
+            <label for="webhook_secret" class="block font-label text-xs font-semibold uppercase tracking-widest text-on-surface-variant mb-1.5">
+                Webhook Secret <span class="normal-case tracking-normal font-normal text-outline">(optional)</span>
+            </label>
+            <input type="password" id="webhook_secret" name="webhook_secret"
+                   placeholder="Optional shared secret for webhook validation"
+                   class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-sm text-sm text-on-surface placeholder-outline focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary">
+        </div>
+
+        <div class="flex items-center gap-2">
+            <input type="checkbox" id="polling_enabled" name="polling_enabled"
+                   {% if not connection or connection.polling_enabled %}checked{% endif %}
+                   class="rounded-sm border-outline-variant/30 text-primary focus:ring-primary">
+            <label for="polling_enabled" class="text-sm text-on-surface">Enable polling</label>
+        </div>
+
+        <div class="flex items-center gap-3 pt-2">
+            <button type="submit"
+                    class="inline-flex items-center gap-1.5 bg-gradient-to-br from-primary to-primary-dim text-on-primary px-5 py-2.5 rounded-sm font-semibold text-xs font-label hover:brightness-110 active:scale-95 transition-all shadow-sm">
+                <span class="material-symbols-outlined text-sm">save</span>
+                {{ "Update Connection" if connection else "Connect Repository" }}
+            </button>
+            {% if connection %}
+            <a href="{{ url_for('github.dashboard', project_id=project.id) }}"
+               class="inline-flex items-center gap-1.5 bg-surface-container text-on-surface px-4 py-2.5 rounded-sm font-semibold text-xs font-label hover:bg-surface-container-high transition-colors">
+                Cancel
+            </a>
+            {% endif %}
+        </div>
+
+    </form>
+
+</div>
+
+{% endblock %}
