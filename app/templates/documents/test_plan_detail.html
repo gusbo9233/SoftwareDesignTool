@@ -1,0 +1,71 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}Test Plan - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>Test Plan</span>
+{% endblock %}
+
+{% block project_content %}
+<div class="page-header">
+    <h1>Test Plan</h1>
+    <div class="actions">
+        <a href="{{ url_for('documents.edit', project_id=project.id, id=document.id) }}" class="btn">Edit</a>
+        <form method="POST" action="{{ url_for('documents.delete', project_id=project.id, id=document.id) }}" class="inline-form">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this test plan?')">Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="document-content">
+    <h3>Test Scope</h3>
+    <p>{{ data.get('test_scope', '—') }}</p>
+
+    {% if data.get('test_strategy') %}
+    <h3>Test Strategy</h3>
+    <p>{{ data.test_strategy }}</p>
+    {% endif %}
+
+    {% if data.get('test_cases') %}
+    <h3>Test Cases</h3>
+    <table class="data-table">
+        <thead><tr><th>#</th><th>Description</th><th>Steps</th><th>Expected Result</th><th>Status</th></tr></thead>
+        <tbody>
+            {% for tc in data.test_cases %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ tc.description }}</td>
+                <td>{{ tc.steps }}</td>
+                <td>{{ tc.expected_result }}</td>
+                <td>{{ tc.status | replace('_', ' ') | capitalize }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if data.get('entry_criteria') %}
+    <h3>Entry Criteria</h3>
+    <p>{{ data.entry_criteria }}</p>
+    {% endif %}
+
+    {% if data.get('exit_criteria') %}
+    <h3>Exit Criteria</h3>
+    <p>{{ data.exit_criteria }}</p>
+    {% endif %}
+
+    {% if data.get('environment') %}
+    <h3>Environment</h3>
+    <p>{{ data.environment }}</p>
+    {% endif %}
+</div>
+
+<div class="meta">
+    <small>Created {{ document.created_at.strftime('%Y-%m-%d %H:%M') }} | Updated {{ document.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+</div>
+{% endblock %}

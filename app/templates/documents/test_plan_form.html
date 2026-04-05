@@ -1,0 +1,86 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}{{ "Edit" if document else "New" }} Test Plan - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ "Edit" if document else "New" }} Test Plan</span>
+{% endblock %}
+
+{% block project_content %}
+<h1>{{ "Edit" if document else "New" }} Test Plan</h1>
+
+<form method="POST" class="form form-wide">
+    <div class="form-group">
+        <label for="test_scope">Test Scope</label>
+        <textarea id="test_scope" name="test_scope" rows="3" placeholder="What is being tested" required>{{ data.get('test_scope', '') }}</textarea>
+    </div>
+    <div class="form-group">
+        <label for="test_strategy">Test Strategy</label>
+        <textarea id="test_strategy" name="test_strategy" rows="3" placeholder="Approach: unit, integration, E2E, manual, etc.">{{ data.get('test_strategy', '') }}</textarea>
+    </div>
+
+    <fieldset>
+        <legend>Test Cases</legend>
+        <table class="data-table" id="cases-table">
+            <thead>
+                <tr><th>Description</th><th>Steps</th><th>Expected Result</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for tc in data.get('test_cases', [{}]) %}
+                <tr>
+                    <td><input type="text" name="case_description" value="{{ tc.get('description', '') }}"></td>
+                    <td><input type="text" name="case_steps" value="{{ tc.get('steps', '') }}"></td>
+                    <td><input type="text" name="case_expected" value="{{ tc.get('expected_result', '') }}"></td>
+                    <td>
+                        <select name="case_status">
+                            <option value="not_run" {{ 'selected' if tc.get('status', 'not_run') == 'not_run' }}>Not Run</option>
+                            <option value="passed" {{ 'selected' if tc.get('status') == 'passed' }}>Passed</option>
+                            <option value="failed" {{ 'selected' if tc.get('status') == 'failed' }}>Failed</option>
+                            <option value="blocked" {{ 'selected' if tc.get('status') == 'blocked' }}>Blocked</option>
+                        </select>
+                    </td>
+                    <td><button type="button" class="btn btn-small btn-danger" onclick="this.closest('tr').remove()">Remove</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-small" onclick="addTestCase()">+ Add Test Case</button>
+    </fieldset>
+
+    <div class="form-group">
+        <label for="entry_criteria">Entry Criteria</label>
+        <textarea id="entry_criteria" name="entry_criteria" rows="2" placeholder="Conditions to start testing">{{ data.get('entry_criteria', '') }}</textarea>
+    </div>
+    <div class="form-group">
+        <label for="exit_criteria">Exit Criteria</label>
+        <textarea id="exit_criteria" name="exit_criteria" rows="2" placeholder="Conditions to complete testing">{{ data.get('exit_criteria', '') }}</textarea>
+    </div>
+    <div class="form-group">
+        <label for="environment">Environment</label>
+        <textarea id="environment" name="environment" rows="2" placeholder="Required setup and dependencies">{{ data.get('environment', '') }}</textarea>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ "Update" if document else "Create" }}</button>
+        <a href="{{ url_for('documents.index', project_id=project.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+
+<script>
+function addTestCase() {
+    const tbody = document.querySelector('#cases-table tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td><input type="text" name="case_description"></td>' +
+        '<td><input type="text" name="case_steps"></td>' +
+        '<td><input type="text" name="case_expected"></td>' +
+        '<td><select name="case_status"><option value="not_run">Not Run</option><option value="passed">Passed</option><option value="failed">Failed</option><option value="blocked">Blocked</option></select></td>' +
+        '<td><button type="button" class="btn btn-small btn-danger" onclick="this.closest(\'tr\').remove()">Remove</button></td>';
+    tbody.appendChild(tr);
+}
+</script>
+{% endblock %}

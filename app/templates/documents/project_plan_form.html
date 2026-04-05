@@ -1,0 +1,169 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}{{ "Edit" if document else "New" }} Project Plan - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ "Edit" if document else "New" }} Project Plan</span>
+{% endblock %}
+
+{% block project_content %}
+<h1>{{ "Edit" if document else "New" }} Project Plan</h1>
+
+<form method="POST" class="form form-wide">
+    <fieldset>
+        <legend>Project Info</legend>
+        <div class="form-group">
+            <label for="project_name">Project Name</label>
+            <input type="text" id="project_name" name="project_name" value="{{ data.get('project_name', '') }}" required>
+        </div>
+        <div class="form-group">
+            <label for="project_description">Description</label>
+            <textarea id="project_description" name="project_description" rows="3">{{ data.get('project_description', '') }}</textarea>
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Goals & Objectives</legend>
+        <div id="goals-list">
+            {% for goal in data.get('goals', ['']) %}
+            <div class="repeatable-row">
+                <input type="text" name="goals" value="{{ goal }}" placeholder="Goal or objective">
+                <button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">Remove</button>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" class="btn btn-small" onclick="addRow('goals-list', 'goals', 'Goal or objective')">+ Add Goal</button>
+    </fieldset>
+
+    <fieldset>
+        <legend>Scope</legend>
+        <div class="form-group">
+            <label>In Scope</label>
+            <div id="in-scope-list">
+                {% for item in data.get('in_scope', ['']) %}
+                <div class="repeatable-row">
+                    <input type="text" name="in_scope" value="{{ item }}" placeholder="In-scope item">
+                    <button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">Remove</button>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="btn btn-small" onclick="addRow('in-scope-list', 'in_scope', 'In-scope item')">+ Add</button>
+        </div>
+        <div class="form-group">
+            <label>Out of Scope</label>
+            <div id="out-scope-list">
+                {% for item in data.get('out_scope', ['']) %}
+                <div class="repeatable-row">
+                    <input type="text" name="out_scope" value="{{ item }}" placeholder="Out-of-scope item">
+                    <button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">Remove</button>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="btn btn-small" onclick="addRow('out-scope-list', 'out_scope', 'Out-of-scope item')">+ Add</button>
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Milestones</legend>
+        <table class="data-table" id="milestones-table">
+            <thead>
+                <tr><th>Name</th><th>Target Date</th><th>Deliverables</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for ms in data.get('milestones', [{}]) %}
+                <tr>
+                    <td><input type="text" name="milestone_name" value="{{ ms.get('name', '') }}"></td>
+                    <td><input type="date" name="milestone_date" value="{{ ms.get('target_date', '') }}"></td>
+                    <td><input type="text" name="milestone_deliverables" value="{{ ms.get('deliverables', '') }}"></td>
+                    <td>
+                        <select name="milestone_status">
+                            <option value="planned" {{ 'selected' if ms.get('status', 'planned') == 'planned' }}>Planned</option>
+                            <option value="in_progress" {{ 'selected' if ms.get('status') == 'in_progress' }}>In Progress</option>
+                            <option value="completed" {{ 'selected' if ms.get('status') == 'completed' }}>Completed</option>
+                        </select>
+                    </td>
+                    <td><button type="button" class="btn btn-small btn-danger" onclick="this.closest('tr').remove()">Remove</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-small" onclick="addMilestoneRow()">+ Add Milestone</button>
+    </fieldset>
+
+    <fieldset>
+        <legend>Risks</legend>
+        <table class="data-table" id="risks-table">
+            <thead>
+                <tr><th>Risk</th><th>Likelihood</th><th>Impact</th><th>Mitigation</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for risk in data.get('risks', [{}]) %}
+                <tr>
+                    <td><input type="text" name="risk_description" value="{{ risk.get('description', '') }}"></td>
+                    <td>
+                        <select name="risk_likelihood">
+                            <option value="low" {{ 'selected' if risk.get('likelihood') == 'low' }}>Low</option>
+                            <option value="medium" {{ 'selected' if risk.get('likelihood', 'medium') == 'medium' }}>Medium</option>
+                            <option value="high" {{ 'selected' if risk.get('likelihood') == 'high' }}>High</option>
+                        </select>
+                    </td>
+                    <td>
+                        <select name="risk_impact">
+                            <option value="low" {{ 'selected' if risk.get('impact') == 'low' }}>Low</option>
+                            <option value="medium" {{ 'selected' if risk.get('impact', 'medium') == 'medium' }}>Medium</option>
+                            <option value="high" {{ 'selected' if risk.get('impact') == 'high' }}>High</option>
+                        </select>
+                    </td>
+                    <td><input type="text" name="risk_mitigation" value="{{ risk.get('mitigation', '') }}"></td>
+                    <td><button type="button" class="btn btn-small btn-danger" onclick="this.closest('tr').remove()">Remove</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-small" onclick="addRiskRow()">+ Add Risk</button>
+    </fieldset>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ "Update" if document else "Create" }}</button>
+        <a href="{{ url_for('documents.index', project_id=project.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+
+<script>
+function addRow(listId, name, placeholder) {
+    const list = document.getElementById(listId);
+    const row = document.createElement('div');
+    row.className = 'repeatable-row';
+    row.innerHTML = '<input type="text" name="' + name + '" placeholder="' + placeholder + '">' +
+        '<button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">Remove</button>';
+    list.appendChild(row);
+}
+
+function addMilestoneRow() {
+    const tbody = document.querySelector('#milestones-table tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td><input type="text" name="milestone_name"></td>' +
+        '<td><input type="date" name="milestone_date"></td>' +
+        '<td><input type="text" name="milestone_deliverables"></td>' +
+        '<td><select name="milestone_status"><option value="planned">Planned</option><option value="in_progress">In Progress</option><option value="completed">Completed</option></select></td>' +
+        '<td><button type="button" class="btn btn-small btn-danger" onclick="this.closest(\'tr\').remove()">Remove</button></td>';
+    tbody.appendChild(tr);
+}
+
+function addRiskRow() {
+    const tbody = document.querySelector('#risks-table tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td><input type="text" name="risk_description"></td>' +
+        '<td><select name="risk_likelihood"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></td>' +
+        '<td><select name="risk_impact"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></td>' +
+        '<td><input type="text" name="risk_mitigation"></td>' +
+        '<td><button type="button" class="btn btn-small btn-danger" onclick="this.closest(\'tr\').remove()">Remove</button></td>';
+    tbody.appendChild(tr);
+}
+</script>
+{% endblock %}

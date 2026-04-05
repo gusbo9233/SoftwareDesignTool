@@ -1,0 +1,56 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}User Story - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>User Story</span>
+{% endblock %}
+
+{% block project_content %}
+<div class="page-header">
+    <h1>User Story</h1>
+    <div class="actions">
+        <a href="{{ url_for('documents.edit', project_id=project.id, id=document.id) }}" class="btn">Edit</a>
+        <form method="POST" action="{{ url_for('documents.delete', project_id=project.id, id=document.id) }}" class="inline-form">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this user story?')">Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="document-content">
+    <blockquote class="story-statement">
+        As a <strong>{{ data.get('user_type', '—') }}</strong>,
+        I want to <strong>{{ data.get('action', '—') }}</strong>
+        so that I can <strong>{{ data.get('benefit', '—') }}</strong>.
+    </blockquote>
+
+    <div class="detail-grid">
+        <div class="detail-item">
+            <span class="detail-label">Priority</span>
+            <span class="badge badge-{{ data.get('priority', 'medium') }}">{{ data.get('priority', 'medium') | capitalize }}</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Status</span>
+            <span class="badge">{{ data.get('status', 'draft') | capitalize }}</span>
+        </div>
+    </div>
+
+    {% if data.get('acceptance_criteria') %}
+    <h3>Acceptance Criteria</h3>
+    <ul>
+        {% for criterion in data.acceptance_criteria %}
+        <li>{{ criterion }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+
+<div class="meta">
+    <small>Created {{ document.created_at.strftime('%Y-%m-%d %H:%M') }} | Updated {{ document.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+</div>
+{% endblock %}

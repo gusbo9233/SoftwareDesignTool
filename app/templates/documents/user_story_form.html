@@ -1,0 +1,82 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}{{ "Edit" if document else "New" }} User Story - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}">Documents</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ "Edit" if document else "New" }} User Story</span>
+{% endblock %}
+
+{% block project_content %}
+<h1>{{ "Edit" if document else "New" }} User Story</h1>
+
+<div class="story-preview">
+    <p>As a <strong>[type of user]</strong>, I want to <strong>[perform an action]</strong> so that I can <strong>[achieve a goal/benefit]</strong>.</p>
+</div>
+
+<form method="POST" class="form">
+    <div class="form-group">
+        <label for="user_type">User Type</label>
+        <input type="text" id="user_type" name="user_type" value="{{ data.get('user_type', '') }}" placeholder="e.g., developer, admin, team lead" required>
+    </div>
+    <div class="form-group">
+        <label for="action">Action (I want to...)</label>
+        <textarea id="action" name="action" rows="2" placeholder="e.g., assign tasks to team members" required>{{ data.get('action', '') }}</textarea>
+    </div>
+    <div class="form-group">
+        <label for="benefit">Benefit (So that I can...)</label>
+        <textarea id="benefit" name="benefit" rows="2" placeholder="e.g., track workload distribution" required>{{ data.get('benefit', '') }}</textarea>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label for="priority">Priority</label>
+            <select id="priority" name="priority">
+                <option value="high" {{ 'selected' if data.get('priority') == 'high' }}>High</option>
+                <option value="medium" {{ 'selected' if data.get('priority', 'medium') == 'medium' }}>Medium</option>
+                <option value="low" {{ 'selected' if data.get('priority') == 'low' }}>Low</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+                <option value="draft" {{ 'selected' if data.get('status', 'draft') == 'draft' }}>Draft</option>
+                <option value="approved" {{ 'selected' if data.get('status') == 'approved' }}>Approved</option>
+                <option value="implemented" {{ 'selected' if data.get('status') == 'implemented' }}>Implemented</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label>Acceptance Criteria</label>
+        <div id="criteria-list">
+            {% for criterion in data.get('acceptance_criteria', ['']) %}
+            <div class="repeatable-row">
+                <input type="text" name="acceptance_criteria" value="{{ criterion }}" placeholder="Verifiable condition">
+                <button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">Remove</button>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" class="btn btn-small" onclick="addCriterion()">+ Add Criterion</button>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ "Update" if document else "Create" }}</button>
+        <a href="{{ url_for('documents.index', project_id=project.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+
+<script>
+function addCriterion() {
+    const list = document.getElementById('criteria-list');
+    const row = document.createElement('div');
+    row.className = 'repeatable-row';
+    row.innerHTML = '<input type="text" name="acceptance_criteria" placeholder="Verifiable condition">' +
+        '<button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">Remove</button>';
+    list.appendChild(row);
+}
+</script>
+{% endblock %}

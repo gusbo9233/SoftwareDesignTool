@@ -1,0 +1,42 @@
+{% extends "project_layout.html" %}
+{% set active_section = "diagrams" %}
+
+{% block title %}Diagrams - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<span>Diagrams</span>
+{% endblock %}
+
+{% block project_content %}
+<div class="page-header">
+    <h1>Diagrams</h1>
+    <div class="actions">
+        <a href="{{ url_for('diagrams.create', project_id=project.id) }}" class="btn btn-primary">New Diagram</a>
+    </div>
+</div>
+
+{% if diagrams %}
+<div class="project-list">
+    {% for diagram in diagrams %}
+    <div class="project-card">
+        <h3>
+            <a href="{{ url_for('diagrams.editor', project_id=project.id, id=diagram.id) }}">
+                {{ diagram.name }}
+            </a>
+        </h3>
+        <span class="doc-type-badge">{{ type_labels.get(diagram.type, diagram.type) }}</span>
+        <div class="actions" style="margin-top: 0.5rem;">
+            <form method="POST" action="{{ url_for('diagrams.delete', project_id=project.id, id=diagram.id) }}" class="inline-form">
+                <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this diagram?')">Delete</button>
+            </form>
+        </div>
+        <small>Updated {{ diagram.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="empty-state">No diagrams yet. Create one to get started.</p>
+{% endif %}
+{% endblock %}

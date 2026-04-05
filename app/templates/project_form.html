@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}{{ "Edit" if project else "New" }} Project - Software Design Tool{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb">
+    <a href="{{ url_for('projects.index') }}">Projects</a>
+    {% if project %}
+    <span class="breadcrumb-sep">/</span>
+    <a href="{{ url_for('projects.detail', id=project.id) }}">{{ project.name }}</a>
+    <span class="breadcrumb-sep">/</span>
+    <span>Edit</span>
+    {% else %}
+    <span class="breadcrumb-sep">/</span>
+    <span>New Project</span>
+    {% endif %}
+</nav>
+
+<h1>{{ "Edit" if project else "New" }} Project</h1>
+
+<form method="POST" class="form">
+    <div class="form-group">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" value="{{ project.name if project else '' }}" required maxlength="200">
+    </div>
+    <div class="form-group">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="4">{{ project.description if project else '' }}</textarea>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ "Update" if project else "Create" }}</button>
+        {% if project %}
+        <a href="{{ url_for('projects.detail', id=project.id) }}" class="btn">Cancel</a>
+        {% else %}
+        <a href="{{ url_for('projects.index') }}" class="btn">Cancel</a>
+        {% endif %}
+    </div>
+</form>
+{% endblock %}

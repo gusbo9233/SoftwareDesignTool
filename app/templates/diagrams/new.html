@@ -1,0 +1,35 @@
+{% extends "project_layout.html" %}
+{% set active_section = "diagrams" %}
+
+{% block title %}New Diagram - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('diagrams.index', project_id=project.id) }}">Diagrams</a>
+<span class="breadcrumb-sep">/</span>
+<span>New Diagram</span>
+{% endblock %}
+
+{% block project_content %}
+<h1>New Diagram</h1>
+
+<form method="POST" class="form">
+    <div class="form-group">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" required maxlength="200" placeholder="e.g., System Architecture Overview">
+    </div>
+    <div class="form-group">
+        <label for="type">Diagram Type</label>
+        <select id="type" name="type" required>
+            {% for type_key, type_label in type_labels.items() %}
+            <option value="{{ type_key }}">{{ type_label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Create & Open Editor</button>
+        <a href="{{ url_for('diagrams.index', project_id=project.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,167 @@
+{% extends "project_layout.html" %}
+{% set active_section = "api_endpoints" %}
+
+{% block title %}{{ "Edit" if endpoint else "New" }} API Endpoint - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('api_endpoints.index', project_id=project.id) }}">API Endpoints</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ "Edit" if endpoint else "New" }} Endpoint</span>
+{% endblock %}
+
+{% block project_content %}
+<h1>{{ "Edit" if endpoint else "New" }} API Endpoint</h1>
+
+<form method="POST" class="form-wide">
+    <div class="form-row">
+        <div class="form-group">
+            <label for="method">HTTP Method</label>
+            <select id="method" name="method" required>
+                {% for m in methods %}
+                <option value="{{ m }}" {% if data.get('method') == m %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="path">Path</label>
+            <input type="text" id="path" name="path" value="{{ data.get('path', '') }}" required placeholder="/api/resources/{id}">
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="2" placeholder="What does this endpoint do?">{{ data.get('description', '') }}</textarea>
+    </div>
+
+    <fieldset>
+        <legend>Parameters</legend>
+        <table class="data-table" id="params-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Location</th>
+                    <th>Type</th>
+                    <th>Required</th>
+                    <th>Description</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for param in data.get('parameters', []) %}
+                <tr>
+                    <td><input type="text" name="param_name" value="{{ param.name }}"></td>
+                    <td>
+                        <select name="param_location">
+                            {% for loc in param_locations %}
+                            <option value="{{ loc }}" {% if param.location == loc %}selected{% endif %}>{{ loc }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td>
+                        <select name="param_type">
+                            <option value="string" {% if param.type == 'string' %}selected{% endif %}>string</option>
+                            <option value="integer" {% if param.type == 'integer' %}selected{% endif %}>integer</option>
+                            <option value="number" {% if param.type == 'number' %}selected{% endif %}>number</option>
+                            <option value="boolean" {% if param.type == 'boolean' %}selected{% endif %}>boolean</option>
+                            <option value="array" {% if param.type == 'array' %}selected{% endif %}>array</option>
+                            <option value="object" {% if param.type == 'object' %}selected{% endif %}>object</option>
+                        </select>
+                    </td>
+                    <td><input type="checkbox" name="param_required" value="{{ loop.index0 }}" {% if param.required %}checked{% endif %}></td>
+                    <td><input type="text" name="param_description" value="{{ param.description }}"></td>
+                    <td><button type="button" class="btn btn-small btn-danger" onclick="this.closest('tr').remove()">X</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-small" onclick="addParamRow()">+ Add Parameter</button>
+    </fieldset>
+
+    <fieldset>
+        <legend>Request Body (JSON Schema)</legend>
+        <div class="form-group">
+            <textarea id="request_body" name="request_body" rows="6" placeholder='{"type": "object", "properties": {...}}'>{{ data.get('request_body', '') }}</textarea>
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Response Body (JSON Schema)</legend>
+        <div class="form-group">
+            <textarea id="response_body" name="response_body" rows="6" placeholder='{"type": "object", "properties": {...}}'>{{ data.get('response_body', '') }}</textarea>
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Status Codes</legend>
+        <table class="data-table" id="status-codes-table">
+            <thead>
+                <tr>
+                    <th style="width: 100px;">Code</th>
+                    <th>Description</th>
+                    <th style="width: 40px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sc in data.get('status_codes', []) %}
+                <tr>
+                    <td><input type="text" name="status_code" value="{{ sc.code }}" placeholder="200"></td>
+                    <td><input type="text" name="status_description" value="{{ sc.description }}" placeholder="Success"></td>
+                    <td><button type="button" class="btn btn-small btn-danger" onclick="this.closest('tr').remove()">X</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-small" onclick="addStatusCodeRow()">+ Add Status Code</button>
+    </fieldset>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ "Update" if endpoint else "Create" }} Endpoint</button>
+        <a href="{{ url_for('api_endpoints.index', project_id=project.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+
+<script>
+function addParamRow() {
+    const tbody = document.querySelector('#params-table tbody');
+    const idx = tbody.querySelectorAll('tr').length;
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td><input type="text" name="param_name" placeholder="name"></td>
+        <td>
+            <select name="param_location">
+                {% for loc in param_locations %}
+                <option value="{{ loc }}">{{ loc }}</option>
+                {% endfor %}
+            </select>
+        </td>
+        <td>
+            <select name="param_type">
+                <option value="string">string</option>
+                <option value="integer">integer</option>
+                <option value="number">number</option>
+                <option value="boolean">boolean</option>
+                <option value="array">array</option>
+                <option value="object">object</option>
+            </select>
+        </td>
+        <td><input type="checkbox" name="param_required" value="${idx}"></td>
+        <td><input type="text" name="param_description" placeholder="Description"></td>
+        <td><button type="button" class="btn btn-small btn-danger" onclick="this.closest('tr').remove()">X</button></td>
+    `;
+    tbody.appendChild(row);
+}
+
+function addStatusCodeRow() {
+    const tbody = document.querySelector('#status-codes-table tbody');
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td><input type="text" name="status_code" placeholder="200"></td>
+        <td><input type="text" name="status_description" placeholder="Success"></td>
+        <td><button type="button" class="btn btn-small btn-danger" onclick="this.closest('tr').remove()">X</button></td>
+    `;
+    tbody.appendChild(row);
+}
+</script>
+{% endblock %}

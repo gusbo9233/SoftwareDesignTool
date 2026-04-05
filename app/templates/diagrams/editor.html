@@ -1,0 +1,34 @@
+{% extends "project_layout.html" %}
+{% set active_section = "diagrams" %}
+
+{% block title %}{{ diagram.name }} - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('diagrams.index', project_id=project.id) }}">Diagrams</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ diagram.name }}</span>
+{% endblock %}
+
+{% block project_content %}
+<div class="page-header">
+    <h1>{{ diagram.name }}</h1>
+    <div class="actions">
+        <span class="doc-type-badge">{{ type_label }}</span>
+        <form method="POST" action="{{ url_for('diagrams.delete', project_id=project.id, id=diagram.id) }}" class="inline-form">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this diagram?')">Delete</button>
+        </form>
+    </div>
+</div>
+
+<div
+    id="diagram-editor"
+    data-diagram-id="{{ diagram.id }}"
+    data-project-id="{{ project.id }}"
+    data-diagram-type="{{ diagram.type }}"
+></div>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='js/diagram-editor.css') }}">
+<script type="module" src="{{ url_for('static', filename='js/diagram-editor.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}Documents - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<span>Documents</span>
+{% endblock %}
+
+{% block project_content %}
+<div class="page-header">
+    <h1>Documents</h1>
+</div>
+
+<h3>Create New Document</h3>
+<div class="artifact-grid">
+    {% for type_key, type_label in type_labels.items() %}
+    <a href="{{ url_for('documents.create', project_id=project.id, doc_type=type_key) }}" class="artifact-card doc-create-link">
+        <h3>{{ type_label }}</h3>
+    </a>
+    {% endfor %}
+</div>
+
+<h3 style="margin-top: 2rem;">Existing Documents</h3>
+{% if documents %}
+<div class="project-list">
+    {% for doc in documents %}
+    <div class="project-card">
+        <h3>
+            <a href="{{ url_for('documents.detail', project_id=project.id, id=doc.id) }}">
+                {% if doc.type == 'user_story' %}
+                    User Story: {{ doc.data.get('user_type', 'Untitled') | capitalize }}
+                {% elif doc.type == 'requirement' %}
+                    Requirement: {{ doc.data.get('title', 'Untitled') }}
+                {% elif doc.type == 'project_plan' %}
+                    Project Plan: {{ doc.data.get('project_name', 'Untitled') }}
+                {% elif doc.type == 'test_plan' %}
+                    Test Plan: {{ doc.data.get('test_scope', 'Untitled')[:50] }}
+                {% endif %}
+            </a>
+        </h3>
+        <span class="doc-type-badge">{{ type_labels.get(doc.type, doc.type) }}</span>
+        <small>Updated {{ doc.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="empty-state">No documents yet. Create one above.</p>
+{% endif %}
+{% endblock %}

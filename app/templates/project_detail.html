@@ -1,0 +1,40 @@
+{% extends "project_layout.html" %}
+{% set active_section = "overview" %}
+
+{% block title %}{{ project.name }} - Software Design Tool{% endblock %}
+
+{% block project_content %}
+<div class="page-header">
+    <h1>{{ project.name }}</h1>
+    <div class="actions">
+        <a href="{{ url_for('projects.export', id=project.id, format='json') }}" class="btn btn-primary">Export JSON</a>
+        <a href="{{ url_for('projects.export', id=project.id, format='markdown') }}" class="btn btn-primary">Export Markdown</a>
+        <a href="{{ url_for('projects.edit', id=project.id) }}" class="btn">Edit</a>
+        <form method="POST" action="{{ url_for('projects.delete', id=project.id) }}" class="inline-form">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this project?')">Delete</button>
+        </form>
+    </div>
+</div>
+
+<p>{{ project.description or "No description" }}</p>
+
+<div class="meta">
+    <small>Created {{ project.created_at.strftime('%Y-%m-%d %H:%M') }} | Updated {{ project.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+</div>
+
+<h2>Artifacts</h2>
+<div class="artifact-grid">
+    <a href="{{ url_for('documents.index', project_id=project.id) }}" class="artifact-card doc-create-link">
+        <h3>Documents</h3>
+        <p>{{ project.documents | length }} document(s)</p>
+    </a>
+    <a href="{{ url_for('diagrams.index', project_id=project.id) }}" class="artifact-card doc-create-link">
+        <h3>Diagrams</h3>
+        <p>{{ project.diagrams | length }} diagram(s)</p>
+    </a>
+    <a href="{{ url_for('api_endpoints.index', project_id=project.id) }}" class="artifact-card doc-create-link">
+        <h3>API Endpoints</h3>
+        <p>{{ project.api_endpoints | length }} endpoint(s)</p>
+    </a>
+</div>
+{% endblock %}

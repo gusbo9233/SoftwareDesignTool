@@ -1,0 +1,98 @@
+{% extends "project_layout.html" %}
+{% set active_section = "api_endpoints" %}
+
+{% block title %}{{ endpoint.method }} {{ endpoint.path }} - {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('api_endpoints.index', project_id=project.id) }}">API Endpoints</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ endpoint.method }} {{ endpoint.path }}</span>
+{% endblock %}
+
+{% block project_content %}
+<div class="page-header">
+    <h1>
+        <span class="method-badge method-{{ endpoint.method | lower }}">{{ endpoint.method }}</span>
+        <code>{{ endpoint.path }}</code>
+    </h1>
+    <div class="actions">
+        <a href="{{ url_for('api_endpoints.edit', project_id=project.id, id=endpoint.id) }}" class="btn">Edit</a>
+        <form method="POST" action="{{ url_for('api_endpoints.delete', project_id=project.id, id=endpoint.id) }}" class="inline-form">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this endpoint?')">Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="document-content">
+    {% if endpoint.description %}
+    <h3>Description</h3>
+    <p>{{ endpoint.description }}</p>
+    {% endif %}
+
+    {% set parameters = endpoint.request_schema.get('parameters', []) %}
+    {% if parameters %}
+    <h3>Parameters</h3>
+    <table class="detail-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Location</th>
+                <th>Type</th>
+                <th>Required</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for param in parameters %}
+            <tr>
+                <td><code>{{ param.name }}</code></td>
+                <td>{{ param.location }}</td>
+                <td>{{ param.type }}</td>
+                <td>{{ "Yes" if param.required else "No" }}</td>
+                <td>{{ param.description or "—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% set req_body = endpoint.request_schema.get('body', '') %}
+    {% if req_body %}
+    <h3>Request Body</h3>
+    <pre class="code-block">{{ req_body }}</pre>
+    {% endif %}
+
+    {% set resp_body = endpoint.response_schema.get('body', '') %}
+    {% if resp_body %}
+    <h3>Response Body</h3>
+    <pre class="code-block">{{ resp_body }}</pre>
+    {% endif %}
+
+    {% set status_codes = endpoint.response_schema.get('status_codes', []) %}
+    {% if status_codes %}
+    <h3>Status Codes</h3>
+    <table class="detail-table">
+        <thead>
+            <tr>
+                <th>Code</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sc in status_codes %}
+            <tr>
+                <td><code>{{ sc.code }}</code></td>
+                <td>{{ sc.description }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+
+<div class="meta">
+    <small>Created {{ endpoint.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+</div>
+{% endblock %}

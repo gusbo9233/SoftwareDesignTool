@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<nav class="breadcrumb">
+    {% block breadcrumb %}
+    <a href="{{ url_for('projects.index') }}">Projects</a>
+    <span class="breadcrumb-sep">/</span>
+    <a href="{{ url_for('projects.detail', id=project.id) }}">{{ project.name }}</a>
+    {% endblock %}
+</nav>
+
+<div class="project-layout">
+    <aside class="sidebar">
+        <nav class="sidebar-nav">
+            <div class="sidebar-project-name">{{ project.name }}</div>
+            <a href="{{ url_for('projects.detail', id=project.id) }}" class="sidebar-link {% if active_section == 'overview' %}active{% endif %}">
+                Overview
+            </a>
+            <a href="{{ url_for('documents.index', project_id=project.id) }}" class="sidebar-link {% if active_section == 'documents' %}active{% endif %}">
+                Documents
+                <span class="sidebar-count">{{ project.documents | length }}</span>
+            </a>
+            <a href="{{ url_for('diagrams.index', project_id=project.id) }}" class="sidebar-link {% if active_section == 'diagrams' %}active{% endif %}">
+                Diagrams
+                <span class="sidebar-count">{{ project.diagrams | length }}</span>
+            </a>
+            <a href="{{ url_for('api_endpoints.index', project_id=project.id) }}" class="sidebar-link {% if active_section == 'api_endpoints' %}active{% endif %}">
+                API Endpoints
+                <span class="sidebar-count">{{ project.api_endpoints | length }}</span>
+            </a>
+            <div class="sidebar-divider"></div>
+            <a href="{{ url_for('projects.export', id=project.id, format='json') }}" class="sidebar-link">
+                Export JSON
+            </a>
+            <a href="{{ url_for('projects.export', id=project.id, format='markdown') }}" class="sidebar-link">
+                Export Markdown
+            </a>
+            <div class="sidebar-divider"></div>
+            <a href="{{ url_for('projects.edit', id=project.id) }}" class="sidebar-link">
+                Settings
+            </a>
+        </nav>
+    </aside>
+    <section class="project-main">
+        {% block project_content %}{% endblock %}
+    </section>
+</div>
+{% endblock %}
