@@ -11,6 +11,7 @@
 {% endblock %}
 
 {% block project_content %}
+{% set gdata = data or {} %}
 <h1>Generate Screen with AI</h1>
 <p style="color: var(--on-surface-variant); font-size: 0.9rem; margin-bottom: 1.5rem;">
     Describe the screen you want and Stitch AI will generate it for you in the background.
@@ -22,19 +23,19 @@
 <form method="POST" class="form form-wide" id="generate-form">
     <div class="form-group">
         <label for="prompt">Prompt</label>
-        <textarea id="prompt" name="prompt" rows="5" placeholder="Describe the screen you want, e.g. 'A modern login page with email and password fields, a social login section with Google and GitHub buttons, and a forgot password link. Use a clean, minimal style.'" required></textarea>
+        <textarea id="prompt" name="prompt" rows="5" placeholder="Describe the screen you want, e.g. 'A modern login page with email and password fields, a social login section with Google and GitHub buttons, and a forgot password link. Use a clean, minimal style.'" required>{{ gdata.get('prompt', '') }}</textarea>
     </div>
 
     <div class="form-row">
         <div class="form-group">
             <label for="name">Screen Name</label>
-            <input type="text" id="name" name="name" placeholder="e.g. Login Screen (optional, auto-generated if empty)">
+            <input type="text" id="name" name="name" placeholder="e.g. Login Screen (optional, auto-generated if empty)" value="{{ gdata.get('name', '') }}">
         </div>
         <div class="form-group">
             <label for="device_type">Device Type</label>
             <select id="device_type" name="device_type">
                 {% for key, label in device_types.items() %}
-                <option value="{{ key }}" {% if key == 'DESKTOP' %}selected{% endif %}>{{ label }}</option>
+                <option value="{{ key }}" {% if key == gdata.get('device_type', 'DESKTOP') %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
         </div>

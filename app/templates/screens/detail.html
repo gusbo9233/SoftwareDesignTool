@@ -21,8 +21,10 @@
             {% if sdata.get('prompt') %}
             <span class="badge">AI Generated</span>
             {% endif %}
-            {% if sdata.get('generation_status') in ('queued', 'running') %}
+            {% if sdata.get('generation_status') in ('queued', 'running', 'recovering') %}
             <span class="badge" style="background: var(--secondary-container); color: var(--on-secondary-container);">Generating</span>
+            {% elif sdata.get('generation_status') == 'needs_input' %}
+            <span class="badge" style="background: #fef3c7; color: #a16207;">Needs Input</span>
             {% elif sdata.get('generation_status') == 'failed' %}
             <span class="badge" style="background: #fee2e2; color: #9f403d;">Generation Failed</span>
             {% elif sdata.get('generation_status') == 'completed' %}
@@ -39,6 +41,12 @@
         <a href="{{ url_for('screens.generate_variants', project_id=project.id, id=screen.id) }}" class="btn">
             <span class="material-symbols-outlined text-sm">view_carousel</span>
             Variants
+        </a>
+        {% endif %}
+        {% if sdata.get('prompt') and sdata.get('generation_status') in ('failed', 'needs_input') %}
+        <a href="{{ url_for('screens.generate', project_id=project.id, prompt=sdata.get('prompt', ''), name=screen.name, device_type=screen.device_type.upper()) }}" class="btn">
+            <span class="material-symbols-outlined text-sm">refresh</span>
+            Try Again
         </a>
         {% endif %}
         <a href="{{ url_for('screens.edit', project_id=project.id, id=screen.id) }}" class="btn">
@@ -58,11 +66,11 @@
 <p style="font-size: 0.9rem; color: var(--on-surface-variant); margin-bottom: 1.5rem;">{{ screen.description }}</p>
 {% endif %}
 
-{% if sdata.get('generation_status') in ('queued', 'running', 'failed') %}
-<div id="generation-status-card" class="artifact-card" style="margin-bottom: 1.5rem; border-left: 4px solid {% if sdata.get('generation_status') == 'failed' %}var(--error){% else %}var(--primary){% endif %};">
+{% if sdata.get('generation_status') in ('queued', 'running', 'recovering', 'failed', 'needs_input') %}
+<div id="generation-status-card" class="artifact-card" style="margin-bottom: 1.5rem; border-left: 4px solid {% if sdata.get('generation_status') == 'failed' %}var(--error){% elif sdata.get('generation_status') == 'needs_input' %}#d97706{% else %}var(--primary){% endif %};">
     <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
-        <span class="material-symbols-outlined" id="generation-status-icon" style="color: {% if sdata.get('generation_status') == 'failed' %}var(--error){% else %}var(--primary){% endif %};">
-            {% if sdata.get('generation_status') == 'failed' %}error{% else %}progress_activity{% endif %}
+        <span class="material-symbols-outlined" id="generation-status-icon" style="color: {% if sdata.get('generation_status') == 'failed' %}var(--error){% elif sdata.get('generation_status') == 'needs_input' %}#d97706{% else %}var(--primary){% endif %};">
+            {% if sdata.get('generation_status') == 'failed' %}error{% elif sdata.get('generation_status') == 'needs_input' %}chat{% else %}progress_activity{% endif %}
         </span>
         <div style="flex: 1;">
             <div id="generation-status-label" style="font-weight: 600; margin-bottom: 0.25rem;">
@@ -70,17 +78,36 @@
                 Waiting to start Stitch generation
                 {% elif sdata.get('generation_status') == 'running' %}
                 Stitch is generating this screen
+                {% elif sdata.get('generation_status') == 'recovering' %}
+                Stitch is still checking whether the screen finished
+                {% elif sdata.get('generation_status') == 'needs_input' %}
+                Stitch wants a more specific design request
                 {% else %}
                 Stitch could not generate this screen
                 {% endif %}
             </div>
             <p id="generation-status-message" style="margin: 0; color: var(--on-surface-variant); font-size: 0.875rem; white-space: pre-wrap;">
-                {% if sdata.get('generation_status') == 'failed' and sdata.get('generation_error') %}
+                {% if sdata.get('generation_status') == 'needs_input' and sdata.get('assistant_text') %}
+                {{ sdata.get('assistant_text') }}
+                {% elif sdata.get('generation_status') == 'recovering' %}
+                Stitch dropped the connection, but the generation may still complete. We’re checking the project for a new screen now.
+                {% elif sdata.get('generation_status') == 'failed' and sdata.get('generation_error') %}
+                {% if 'Stitch closed the connection before sending a response.' in sdata.get('generation_error', '') %}
+                Stitch dropped the request before returning a result. This is usually temporary, so try again with the same prompt.
+                {% else %}
                 {{ sdata.get('generation_error') }}
+                {% endif %}
                 {% else %}
                 This page checks for updates automatically. You can leave and come back later.
                 {% endif %}
             </p>
+            {% if sdata.get('generation_status') == 'needs_input' and sdata.get('assistant_suggestions') %}
+            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem;">
+                {% for suggestion in sdata.get('assistant_suggestions', []) %}
+                <span class="badge" style="background: #fff7ed; color: #9a3412;" title="{{ suggestion }}">{{ suggestion }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
             {% if sdata.get('generation_status') == 'failed' and sdata.get('generation_error_details') %}
             <details style="margin-top: 0.75rem;">
                 <summary style="cursor: pointer; font-size: 0.8125rem; color: var(--on-surface-variant);">Technical details</summary>
@@ -155,7 +182,7 @@
     Created {{ screen.created_at.strftime('%Y-%m-%d %H:%M') }}
     &middot; Updated {{ screen.updated_at.strftime('%Y-%m-%d %H:%M') }}
 </div>
-{% if sdata.get('generation_status') in ('queued', 'running', 'failed') %}
+{% if sdata.get('generation_status') in ('queued', 'running', 'recovering', 'failed', 'needs_input') %}
 <script>
 (function() {
     var statusCard = document.getElementById('generation-status-card');
@@ -174,6 +201,20 @@
 
         if (status === 'completed') {
             window.location.reload();
+            return;
+        }
+
+        if (status === 'needs_input') {
+            window.location.reload();
+            return;
+        }
+
+        if (status === 'recovering') {
+            statusCard.style.borderLeftColor = 'var(--primary)';
+            statusIcon.style.color = 'var(--primary)';
+            statusIcon.textContent = 'progress_activity';
+            statusLabel.textContent = 'Stitch is still checking whether the screen finished';
+            statusMessage.textContent = 'Stitch dropped the connection, but the generation may still complete. We’re checking the project for a new screen now.';
             return;
         }
 

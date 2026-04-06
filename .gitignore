@@ -36,3 +36,8 @@ frontend/.env.local
 # IDE
 .vscode/
 .idea/
+
+# Markdown
+*.md
+!README.md
+!**/README.md

@@ -1,85 +1,111 @@
 import json
-import logging
+import os
+import subprocess
+import threading
 
-import requests
 from flask import current_app
-
-logger = logging.getLogger(__name__)
 
 
 class StitchService:
-    """Client for Google Stitch MCP API (JSON-RPC over HTTP)."""
+    """SDK-backed client for Stitch operations via a local Node bridge."""
+
+    _call_lock = threading.Lock()
+
+    @staticmethod
+    def _bridge_command(tool_name):
+        node_binary = current_app.config["STITCH_NODE_BINARY"]
+        bridge_script = current_app.config["STITCH_BRIDGE_SCRIPT"]
+        if not os.path.exists(bridge_script):
+            raise RuntimeError(f"Stitch bridge script not found: {bridge_script}")
+        return [node_binary, bridge_script, tool_name]
+
+    @staticmethod
+    def _bridge_env():
+        env = os.environ.copy()
+        for key in (
+            "STITCH_API_KEY",
+            "STITCH_ACCESS_TOKEN",
+            "GOOGLE_CLOUD_PROJECT",
+            "STITCH_API_URL",
+            "STITCH_HOST",
+        ):
+            config_key = {
+                "STITCH_API_KEY": "STITCH_API_KEY",
+                "STITCH_ACCESS_TOKEN": "STITCH_AUTH_TOKEN",
+                "GOOGLE_CLOUD_PROJECT": "STITCH_GCP_PROJECT",
+                "STITCH_API_URL": "STITCH_API_URL",
+                "STITCH_HOST": "STITCH_API_URL",
+            }[key]
+            value = current_app.config.get(config_key, "")
+            if value:
+                env[key] = value
+        return env
+
+    @staticmethod
+    def _parse_bridge_output(raw_output):
+        raw_output = (raw_output or "").strip()
+        if not raw_output:
+            return {}
+
+        try:
+            return json.loads(raw_output)
+        except json.JSONDecodeError:
+            pass
+
+        for line in reversed(raw_output.splitlines()):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                return json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+        raise RuntimeError(raw_output)
 
     @staticmethod
     def _call_tool(tool_name, arguments):
-        """Call a Stitch MCP tool via JSON-RPC."""
-        url = current_app.config["STITCH_API_URL"]
-        token = current_app.config["STITCH_AUTH_TOKEN"]
-        gcp_project = current_app.config["STITCH_GCP_PROJECT"]
+        command = StitchService._bridge_command(tool_name)
+        payload = json.dumps(arguments or {})
 
-        if not token:
-            raise RuntimeError("STITCH_AUTH_TOKEN not configured")
+        with StitchService._call_lock:
+            try:
+                completed = subprocess.run(
+                    command,
+                    input=payload,
+                    capture_output=True,
+                    text=True,
+                    timeout=330,
+                    env=StitchService._bridge_env(),
+                    cwd=os.path.dirname(current_app.config["STITCH_BRIDGE_SCRIPT"]),
+                )
+            except FileNotFoundError as exc:
+                raise RuntimeError(
+                    "Node.js is required for Stitch SDK integration, but the configured binary was not found."
+                ) from exc
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(
+                    "Stitch request timed out before the SDK returned a response."
+                ) from exc
+            except subprocess.SubprocessError as exc:
+                raise RuntimeError(f"Stitch bridge failed to run: {exc}") from exc
 
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "softwaredesign/1.0 (+https://example.com/softwaredesign)",
-            "Connection": "close",
-        }
-        if gcp_project:
-            headers["X-Goog-User-Project"] = gcp_project
-
-        payload = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/call",
-            "params": {
-                "name": tool_name,
-                "arguments": arguments,
-            },
-        }
-
+        raw_output = "\n".join(part.strip() for part in (completed.stdout, completed.stderr) if part and part.strip())
         try:
-            resp = requests.post(url, json=payload, headers=headers, timeout=300)
-            resp.raise_for_status()
-            result = resp.json()
-        except requests.exceptions.HTTPError as exc:
-            status_code = exc.response.status_code if exc.response is not None else None
-            response_text = ""
-            if exc.response is not None and exc.response.text:
-                response_text = exc.response.text.strip()[:1000]
-            message = f"Stitch HTTP error {status_code or 'unknown'}."
-            if response_text:
-                message += f" Response: {response_text}"
-            logger.warning("Stitch HTTP error for %s: %s", tool_name, message)
-            raise RuntimeError(message) from exc
-        except requests.exceptions.Timeout as exc:
-            logger.warning("Stitch timeout for %s", tool_name)
+            bridge_result = StitchService._parse_bridge_output(raw_output)
+        except RuntimeError:
+            if completed.returncode != 0:
+                raise RuntimeError(raw_output or "Stitch bridge failed without a readable error.")
             raise RuntimeError(
-                "Stitch request timed out before the service returned a response."
-            ) from exc
-        except requests.exceptions.ConnectionError as exc:
-            logger.warning("Stitch connection error for %s: %s", tool_name, exc)
-            raise RuntimeError(
-                "Stitch closed the connection before sending a response."
-            ) from exc
-        except requests.exceptions.RequestException as exc:
-            logger.warning("Stitch request error for %s: %s", tool_name, exc)
-            raise RuntimeError(f"Stitch request failed: {exc.__class__.__name__}: {exc}") from exc
-        except ValueError as exc:
-            response_text = resp.text.strip()[:1000] if resp.text else ""
-            message = "Stitch returned a non-JSON response."
-            if response_text:
-                message += f" Response: {response_text}"
-            logger.warning("Stitch invalid JSON for %s", tool_name)
-            raise RuntimeError(message) from exc
+                f"Stitch bridge returned invalid JSON: {raw_output[:500] or '<empty>'}"
+            )
 
-        if "error" in result:
-            logger.warning("Stitch API error for %s: %s", tool_name, result["error"])
-            raise RuntimeError(f"Stitch API error: {result['error']}")
+        if completed.returncode != 0 or bridge_result.get("ok") is False:
+            error = bridge_result.get("error", {}) if isinstance(bridge_result, dict) else {}
+            message = error.get("message") or raw_output or "Stitch request failed."
+            raise RuntimeError(message)
 
-        return result.get("result", {})
+        return bridge_result.get("result", {})
 
     @staticmethod
     def create_project(title=""):
@@ -110,9 +136,8 @@ class StitchService:
 
     @staticmethod
     def get_screen(project_id, screen_id):
-        name = f"projects/{project_id}/screens/{screen_id}"
         return StitchService._call_tool("get_screen", {
-            "name": name,
+            "name": f"projects/{project_id}/screens/{screen_id}",
             "projectId": project_id,
             "screenId": screen_id,
         })

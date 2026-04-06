@@ -1,12 +1,13 @@
 import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+import time
 import traceback as traceback_module
 import traceback
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 
-from app.services.project_service import ProjectService
+from app.services.project_service import ProjectService, ProjectServiceUnavailableError
 from app.services.screen_service import ScreenService
 from app.services.design_system_service import DesignSystemService
 from app.services.stitch_service import StitchService
@@ -64,7 +65,11 @@ COLOR_VARIANT_CHOICES = [
 
 
 def _get_project_or_redirect(project_id):
-    project = ProjectService.get(project_id)
+    try:
+        project = ProjectService.get(project_id)
+    except ProjectServiceUnavailableError as exc:
+        flash(str(exc), "error")
+        return None
     if not project:
         flash("Project not found.", "error")
         return None
@@ -73,11 +78,58 @@ def _get_project_or_redirect(project_id):
 
 def _extract_stitch_content(result):
     """Extract HTML and image URL from a Stitch MCP result."""
+    if isinstance(result, dict) and "content" not in result:
+        raw_text = json.dumps(result)
+        html = ""
+        image_url = ""
+        screen_id = ""
+        assistant_text = ""
+        suggestions = []
+        html_download_url = ""
+
+        extracted_resource = _extract_screen_from_resource(result)
+        if extracted_resource:
+            html = extracted_resource.get("html", "")
+            image_url = extracted_resource.get("image_url", "")
+            screen_id = extracted_resource.get("screen_id", "")
+            html_download_url = extracted_resource.get("html_download_url", "")
+
+        output_components = result.get("outputComponents", [])
+        if isinstance(output_components, list):
+            for component in output_components:
+                if not isinstance(component, dict):
+                    continue
+                if component.get("text"):
+                    assistant_text = component.get("text", "").strip()
+                if component.get("suggestion"):
+                    suggestions.append(component.get("suggestion", "").strip())
+                design = component.get("design", {})
+                screens = design.get("screens", []) if isinstance(design, dict) else []
+                if screens and not screen_id:
+                    extracted = _extract_screen_from_resource(screens[0])
+                    if extracted:
+                        html = extracted.get("html", html)
+                        image_url = extracted.get("image_url", image_url)
+                        screen_id = extracted.get("screen_id", screen_id)
+                        html_download_url = extracted.get("html_download_url", html_download_url)
+
+        return {
+            "html": html,
+            "image_url": image_url,
+            "screen_id": screen_id,
+            "raw_text": raw_text,
+            "assistant_text": assistant_text,
+            "suggestions": [s for s in suggestions if s],
+            "html_download_url": html_download_url,
+        }
+
     content = result.get("content", [])
     html = ""
     image_url = ""
     screen_id = ""
     raw_text = ""
+    assistant_text = ""
+    suggestions = []
 
     for item in content:
         if isinstance(item, dict):
@@ -98,6 +150,15 @@ def _extract_stitch_content(result):
                 html = parsed.get("html", parsed.get("code", ""))
                 if not image_url:
                     image_url = parsed.get("imageUrl", parsed.get("image_url", ""))
+                output_components = parsed.get("outputComponents", [])
+                if isinstance(output_components, list):
+                    for component in output_components:
+                        if not isinstance(component, dict):
+                            continue
+                        if component.get("text"):
+                            assistant_text = component.get("text", "").strip()
+                        if component.get("suggestion"):
+                            suggestions.append(component.get("suggestion", "").strip())
         except (json.JSONDecodeError, TypeError):
             pass
 
@@ -106,7 +167,128 @@ def _extract_stitch_content(result):
         "image_url": image_url,
         "screen_id": screen_id,
         "raw_text": raw_text,
+        "assistant_text": assistant_text,
+        "suggestions": [s for s in suggestions if s],
+        "html_download_url": "",
     }
+
+
+def _screen_ids_from_list_result(result):
+    screens = result if isinstance(result, list) else result.get("screens", []) if isinstance(result, dict) else []
+    ids = set()
+    for item in screens:
+        if not isinstance(item, dict):
+            continue
+        screen_id = item.get("id")
+        if not screen_id and item.get("name"):
+            screen_id = str(item["name"]).split("/")[-1]
+        if screen_id:
+            ids.add(str(screen_id))
+    return ids
+
+
+def _extract_screen_from_resource(result):
+    if not isinstance(result, dict):
+        return None
+
+    screen_id = result.get("id")
+    if not screen_id and result.get("name"):
+        screen_id = str(result["name"]).split("/")[-1]
+
+    screenshot = result.get("screenshot", {}) if isinstance(result.get("screenshot"), dict) else {}
+    html_code = result.get("htmlCode", {}) if isinstance(result.get("htmlCode"), dict) else {}
+
+    image_url = screenshot.get("downloadUrl", "")
+    html_download_url = html_code.get("downloadUrl", "")
+
+    if not any([screen_id, image_url, html_download_url]):
+        return None
+
+    return {
+        "screen_id": str(screen_id or ""),
+        "image_url": image_url,
+        "html": "",
+        "raw_text": json.dumps(result)[:5000],
+        "html_download_url": html_download_url,
+    }
+
+
+def _recover_generated_screen(project_id, existing_screen_ids, poll_attempts=6, poll_interval_seconds=20):
+    if existing_screen_ids is None:
+        return None
+
+    for attempt in range(poll_attempts):
+        if attempt:
+            time.sleep(poll_interval_seconds)
+
+        listed = StitchService.list_screens(project_id)
+        screens = listed if isinstance(listed, list) else listed.get("screens", []) if isinstance(listed, dict) else []
+
+        for item in screens:
+            if not isinstance(item, dict):
+                continue
+
+            screen_id = item.get("id")
+            if not screen_id and item.get("name"):
+                screen_id = str(item["name"]).split("/")[-1]
+            if not screen_id or str(screen_id) in existing_screen_ids:
+                continue
+
+            detailed = StitchService.get_screen(project_id, str(screen_id))
+            extracted = _extract_screen_from_resource(detailed)
+            if extracted:
+                return extracted
+
+    return None
+
+
+def _recover_generation_after_disconnect(app, screen_id, project_id, existing_screen_ids):
+    with app.app_context():
+        try:
+            recovered = _recover_generated_screen(
+                project_id,
+                existing_screen_ids,
+                poll_attempts=15,
+                poll_interval_seconds=20,
+            )
+            if recovered:
+                _update_generation_state(
+                    screen_id,
+                    stitch_project_id=project_id,
+                    stitch_screen_id=recovered["screen_id"],
+                    html=recovered["html"],
+                    image_url=recovered["image_url"],
+                    raw_response=recovered["raw_text"],
+                    html_download_url=recovered.get("html_download_url", ""),
+                    generation_status="completed",
+                    generation_error="",
+                    generation_error_details="",
+                    generation_finished_at=_utc_now_iso(),
+                )
+                return
+
+            _update_generation_state(
+                screen_id,
+                generation_status="failed",
+                generation_error=(
+                    "Stitch dropped the connection before returning a result, "
+                    "and no new screen appeared after waiting. Please try again."
+                ),
+                generation_finished_at=_utc_now_iso(),
+            )
+        except Exception as exc:
+            traceback.print_exc()
+            _update_generation_state(
+                screen_id,
+                generation_status="failed",
+                generation_error=(
+                    "Stitch dropped the connection and recovery failed while checking for the generated screen."
+                ),
+                generation_error_details="".join(
+                    traceback_module.format_exception(type(exc), exc, exc.__traceback__)
+                )[:5000],
+                generation_finished_at=_utc_now_iso(),
+            )
 
 
 def _utc_now_iso():
@@ -125,6 +307,8 @@ def _update_generation_state(screen_id, **changes):
 
 def _run_screen_generation(app, project_id, screen_id, prompt, device_type, stitch_project_id=""):
     with app.app_context():
+        active_stitch_project_id = stitch_project_id
+        existing_screen_ids = None
         try:
             _update_generation_state(
                 screen_id,
@@ -133,15 +317,19 @@ def _run_screen_generation(app, project_id, screen_id, prompt, device_type, stit
                 generation_error_details="",
                 generation_started_at=_utc_now_iso(),
             )
-
-            active_stitch_project_id = stitch_project_id
             if not active_stitch_project_id:
                 design_system = DesignSystemService.get_for_project(project_id)
                 if design_system and design_system.data:
                     active_stitch_project_id = design_system.data.get("stitch_project_id", "")
 
             if not active_stitch_project_id:
-                create_result = StitchService.create_project(title=ProjectService.get(project_id).name)
+                try:
+                    project = ProjectService.get(project_id)
+                except ProjectServiceUnavailableError:
+                    project = None
+                create_result = StitchService.create_project(
+                    title=project.name if project else "Untitled Project"
+                )
                 stitch_content = _extract_stitch_content(create_result)
                 if stitch_content["raw_text"]:
                     try:
@@ -155,12 +343,32 @@ def _run_screen_generation(app, project_id, screen_id, prompt, device_type, stit
             if not active_stitch_project_id:
                 raise RuntimeError("Could not create or find a Stitch project.")
 
+            existing_screen_ids = _screen_ids_from_list_result(
+                StitchService.list_screens(active_stitch_project_id)
+            )
+
             result = StitchService.generate_screen(
                 project_id=active_stitch_project_id,
                 prompt=prompt,
                 device_type=device_type,
             )
             content = _extract_stitch_content(result)
+
+            if not any([content["screen_id"], content["html"], content["image_url"]]):
+                if content["assistant_text"] or content["suggestions"]:
+                    _update_generation_state(
+                        screen_id,
+                        stitch_project_id=active_stitch_project_id,
+                        raw_response=content["raw_text"][:5000],
+                        generation_status="needs_input",
+                        generation_error="",
+                        generation_error_details="",
+                        assistant_text=content["assistant_text"],
+                        assistant_suggestions=content["suggestions"][:5],
+                        generation_finished_at=_utc_now_iso(),
+                    )
+                    return
+                raise RuntimeError("Stitch did not return a screen preview.")
 
             _update_generation_state(
                 screen_id,
@@ -172,10 +380,35 @@ def _run_screen_generation(app, project_id, screen_id, prompt, device_type, stit
                 generation_status="completed",
                 generation_error="",
                 generation_error_details="",
+                assistant_text="",
+                assistant_suggestions=[],
                 generation_finished_at=_utc_now_iso(),
             )
         except Exception as exc:
             traceback.print_exc()
+            if (
+                str(exc) == "Stitch closed the connection before sending a response."
+                and active_stitch_project_id
+            ):
+                try:
+                    _update_generation_state(
+                        screen_id,
+                        generation_status="recovering",
+                        generation_error="",
+                        generation_error_details="",
+                        generation_finished_at="",
+                    )
+                    _GENERATION_EXECUTOR.submit(
+                        _recover_generation_after_disconnect,
+                        current_app._get_current_object(),
+                        screen_id,
+                        active_stitch_project_id,
+                        existing_screen_ids or set(),
+                    )
+                    return
+                except Exception:
+                    traceback.print_exc()
+
             _update_generation_state(
                 screen_id,
                 generation_status="failed",
@@ -313,6 +546,12 @@ def generate(project_id):
     if not project:
         return redirect(url_for("projects.index"))
 
+    initial_data = {
+        "prompt": request.args.get("prompt", "").strip(),
+        "name": request.args.get("name", "").strip(),
+        "device_type": request.args.get("device_type", "DESKTOP").strip() or "DESKTOP",
+    }
+
     if request.method == "POST":
         prompt = request.form.get("prompt", "").strip()
         device_type = request.form.get("device_type", "DESKTOP")
@@ -322,7 +561,7 @@ def generate(project_id):
         if not prompt:
             flash("A prompt is required to generate a screen.", "error")
             return render_template("screens/generate.html", project=project,
-                                   device_types=DEVICE_TYPES)
+                                   device_types=DEVICE_TYPES, data=initial_data)
 
         data = {
             "prompt": prompt,
@@ -369,7 +608,7 @@ def generate(project_id):
         return redirect(url_for("screens.detail", project_id=project_id, id=screen.id))
 
     return render_template("screens/generate.html", project=project,
-                           device_types=DEVICE_TYPES)
+                           device_types=DEVICE_TYPES, data=initial_data)
 
 
 @screens_bp.route("/projects/<project_id>/screens/<id>/edit-with-ai", methods=["GET", "POST"])

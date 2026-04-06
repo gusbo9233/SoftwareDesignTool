@@ -1,5 +1,5 @@
 import pytest
-from app.services.project_service import ProjectService
+from app.services.project_service import ProjectService, ProjectServiceUnavailableError
 
 
 class TestProjectService:
@@ -93,6 +93,17 @@ class TestProjectRoutes:
         response = client.get("/projects/00000000-0000-0000-0000-000000000000", follow_redirects=True)
         assert response.status_code == 200
         assert b"not found" in response.data
+
+    def test_project_detail_handles_backend_disconnect(self, client, monkeypatch, project):
+        def fail(_id):
+            raise ProjectServiceUnavailableError("Could not reach project storage while trying to load the project. Please try again.")
+
+        monkeypatch.setattr("app.routes.projects.ProjectService.get", fail)
+
+        response = client.get(f"/projects/{project.id}", follow_redirects=True)
+
+        assert response.status_code == 200
+        assert b"Could not reach project storage" in response.data
 
     def test_edit_project(self, client, project):
         response = client.post(

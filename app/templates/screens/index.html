@@ -71,14 +71,19 @@
             {% if sdata.get('prompt') %}
             <span class="badge" title="{{ sdata['prompt'] }}">AI Generated</span>
             {% endif %}
-            {% if sdata.get('generation_status') in ('queued', 'running') %}
+            {% if sdata.get('generation_status') in ('queued', 'running', 'recovering') %}
             <span class="badge" style="background: var(--secondary-container); color: var(--on-secondary-container);">Generating</span>
+            {% elif sdata.get('generation_status') == 'needs_input' %}
+            <span class="badge" style="background: #fef3c7; color: #a16207;">Needs Input</span>
             {% elif sdata.get('generation_status') == 'failed' %}
             <span class="badge" style="background: #fee2e2; color: #9f403d;">Failed</span>
             {% endif %}
         </div>
         {% if screen.description %}
         <p style="font-size: 0.8125rem; color: var(--on-surface-variant); margin-bottom: 0.5rem;">{{ screen.description[:100] }}{% if screen.description|length > 100 %}...{% endif %}</p>
+        {% endif %}
+        {% if sdata.get('generation_status') == 'needs_input' and sdata.get('assistant_text') %}
+        <p style="font-size: 0.75rem; color: #9a3412; margin-bottom: 0.5rem;">{{ sdata.get('assistant_text')[:120] }}{% if sdata.get('assistant_text')|length > 120 %}...{% endif %}</p>
         {% endif %}
         {% if sdata.get('generation_status') == 'failed' and sdata.get('generation_error') %}
         <p style="font-size: 0.75rem; color: var(--error); margin-bottom: 0.5rem;">{{ sdata.get('generation_error')[:120] }}{% if sdata.get('generation_error')|length > 120 %}...{% endif %}</p>

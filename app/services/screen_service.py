@@ -41,7 +41,9 @@ class ScreenService:
     @staticmethod
     def get(id):
         res = _app.supabase.table("screens").select("*").eq("id", id).maybe_single().execute()
-        return _screen(res.data) if res.data else None
+        if not res or not getattr(res, "data", None):
+            return None
+        return _screen(res.data)
 
     @staticmethod
     def create(project_id, name, device_type="desktop", description="", data=None):

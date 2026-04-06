@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, Response
 
-from app.services.project_service import ProjectService
+from app.services.project_service import ProjectService, ProjectServiceUnavailableError
 from app.export.export_service import ExportService
 
 projects_bp = Blueprint("projects", __name__)
@@ -8,7 +8,11 @@ projects_bp = Blueprint("projects", __name__)
 
 @projects_bp.route("/")
 def index():
-    projects = ProjectService.get_all()
+    try:
+        projects = ProjectService.get_all()
+    except ProjectServiceUnavailableError as exc:
+        flash(str(exc), "error")
+        projects = []
     return render_template("dashboard.html", projects=projects)
 
 
@@ -20,14 +24,22 @@ def create():
         if not name:
             flash("Project name is required.", "error")
             return render_template("project_form.html", project=None)
-        project = ProjectService.create(name=name, description=description)
+        try:
+            project = ProjectService.create(name=name, description=description)
+        except ProjectServiceUnavailableError as exc:
+            flash(str(exc), "error")
+            return render_template("project_form.html", project=None)
         return redirect(url_for("projects.detail", id=project.id))
     return render_template("project_form.html", project=None)
 
 
 @projects_bp.route("/projects/<id>")
 def detail(id):
-    project = ProjectService.get(id)
+    try:
+        project = ProjectService.get(id)
+    except ProjectServiceUnavailableError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("projects.index"))
     if not project:
         flash("Project not found.", "error")
         return redirect(url_for("projects.index"))
@@ -36,7 +48,11 @@ def detail(id):
 
 @projects_bp.route("/projects/<id>/edit", methods=["GET", "POST"])
 def edit(id):
-    project = ProjectService.get(id)
+    try:
+        project = ProjectService.get(id)
+    except ProjectServiceUnavailableError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("projects.index"))
     if not project:
         flash("Project not found.", "error")
         return redirect(url_for("projects.index"))
@@ -46,16 +62,27 @@ def edit(id):
         if not name:
             flash("Project name is required.", "error")
             return render_template("project_form.html", project=project)
-        ProjectService.update(project, name=name, description=description)
+        try:
+            ProjectService.update(project, name=name, description=description)
+        except ProjectServiceUnavailableError as exc:
+            flash(str(exc), "error")
+            return render_template("project_form.html", project=project)
         return redirect(url_for("projects.detail", id=project.id))
     return render_template("project_form.html", project=project)
 
 
 @projects_bp.route("/projects/<id>/delete", methods=["POST"])
 def delete(id):
-    project = ProjectService.get(id)
+    try:
+        project = ProjectService.get(id)
+    except ProjectServiceUnavailableError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("projects.index"))
     if project:
-        ProjectService.delete(project)
+        try:
+            ProjectService.delete(project)
+        except ProjectServiceUnavailableError as exc:
+            flash(str(exc), "error")
     return redirect(url_for("projects.index"))
 
 
