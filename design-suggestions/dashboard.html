@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Engineering Editorial - Dashboard</title>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Google Fonts: Inter & Space Grotesk -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        /* Custom scrollbar for technical feel */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #eaeff1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #abb3b7;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #737c7f;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "secondary-container": "#d4e3ff",
+                      "error-container": "#fe8983",
+                      "on-secondary-fixed": "#2a4060",
+                      "on-tertiary-fixed-variant": "#466370",
+                      "on-secondary-fixed-variant": "#465c7d",
+                      "on-surface-variant": "#586064",
+                      "primary-container": "#d6e3ff",
+                      "on-primary-container": "#00519e",
+                      "on-background": "#2b3437",
+                      "primary": "#005db5",
+                      "primary-fixed": "#d6e3ff",
+                      "surface-container": "#eaeff1",
+                      "surface-bright": "#f8f9fa",
+                      "surface-container-low": "#f1f4f6",
+                      "secondary-dim": "#3e5475",
+                      "on-tertiary-container": "#3c5966",
+                      "tertiary": "#466370",
+                      "surface-container-highest": "#dbe4e7",
+                      "secondary": "#4a6081",
+                      "outline": "#737c7f",
+                      "on-surface": "#2b3437",
+                      "on-primary-fixed": "#003f7d",
+                      "inverse-surface": "#0c0f10",
+                      "error": "#9f403d",
+                      "surface": "#f8f9fa",
+                      "surface-dim": "#d1dce0",
+                      "secondary-fixed": "#d4e3ff",
+                      "on-secondary-container": "#3d5373",
+                      "on-primary-fixed-variant": "#005bb0",
+                      "on-primary": "#f6f7ff",
+                      "tertiary-dim": "#3a5764",
+                      "primary-dim": "#0052a0",
+                      "on-error-container": "#752121",
+                      "surface-container-lowest": "#ffffff",
+                      "error-dim": "#4e0309",
+                      "background": "#f8f9fa",
+                      "secondary-fixed-dim": "#bfd6fc",
+                      "primary-fixed-dim": "#bfd5ff",
+                      "on-error": "#fff7f6",
+                      "outline-variant": "#abb3b7",
+                      "on-secondary": "#f8f8ff",
+                      "tertiary-container": "#ceedfd",
+                      "surface-container-high": "#e3e9ec",
+                      "tertiary-fixed-dim": "#c0dfee",
+                      "inverse-on-surface": "#9b9d9e",
+                      "on-tertiary-fixed": "#2a4753",
+                      "tertiary-fixed": "#ceedfd",
+                      "on-tertiary": "#f3faff",
+                      "surface-variant": "#dbe4e7",
+                      "surface-tint": "#005db5",
+                      "inverse-primary": "#5f9efb"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "fontFamily": {
+                      "headline": ["Inter"],
+                      "body": ["Inter"],
+                      "label": ["Space Grotesk"]
+              }
+            },
+          },
+        }
+    </script>
+</head>
+<body class="bg-surface font-body text-on-surface antialiased">
+<!-- TopNavBar (Shared Component) -->
+<header class="bg-slate-50 dark:bg-slate-900 border-b-0 flex justify-between items-center w-full px-6 py-3 h-14 fixed top-0 z-50">
+<div class="flex items-center gap-8">
+<span class="font-['Space_Grotesk'] font-bold text-lg text-slate-900 dark:text-slate-100 tracking-tight">The Engineering Editorial</span>
+<nav class="hidden md:flex items-center gap-6 font-['Inter'] text-sm tracking-tight">
+<a class="text-blue-700 dark:text-blue-400 border-b-2 border-blue-700 pb-1" href="#">Dashboard</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-800 transition-colors" href="#">Projects</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-800 transition-colors" href="#">Team</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-800 transition-colors" href="#">Settings</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-lg" data-icon="search">search</span>
+<input class="bg-slate-100 dark:bg-slate-800 border-none rounded-DEFAULT pl-9 pr-4 py-1.5 text-xs focus:ring-1 focus:ring-primary w-64" placeholder="Search projects..." type="text"/>
+</div>
+<button class="hover:bg-slate-200/50 dark:hover:bg-slate-700/50 p-2 rounded-DEFAULT transition-colors">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-400" data-icon="notifications">notifications</span>
+</button>
+<div class="h-8 w-8 rounded-full bg-slate-200 overflow-hidden border border-slate-300">
+<img alt="User profile" data-alt="professional headshot of a software engineer in a modern office environment with soft natural lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBkUkvIjvsao-JNSXJDkZh1YEjGAbXZIBM7uDOShCPs4DWnNnrIxMAuUHeC_ZgVLRz9eS8Qx2OInOkgSd5shisqsRRddhml97KmXTDyajqUQUoQOROAQHMw8YWh_Dh1B0eV1VAbGdQeJP7NtIHs47lL6aAiFx3_sO0dprFSft5J4Mpidav_4eqCK83-f4L9iP8MFZGlWOrInoLTyO2pNtTVwvk9iRHZ9BxIXhrYoJTojMZknlrEtmRlVxDVEZPimHK6emyPKzVYC54"/>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="pt-24 pb-12 px-6 lg:px-12 max-w-7xl mx-auto">
+<!-- Dashboard Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+<div>
+<span class="font-label text-xs font-medium uppercase tracking-widest text-primary mb-2 block">Engineering Workspace</span>
+<h1 class="text-4xl font-extrabold tracking-tighter text-on-surface">Technical Projects</h1>
+</div>
+<button class="bg-gradient-to-br from-primary to-primary-dim text-on-primary px-6 py-3 rounded-DEFAULT font-semibold text-sm flex items-center gap-2 hover:brightness-110 active:scale-95 transition-all shadow-sm">
+<span class="material-symbols-outlined text-lg" data-icon="add">add</span>
+                New Project
+            </button>
+</div>
+<!-- Bento Grid Layout for Projects -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Project Card 1 -->
+<div class="group relative flex flex-col bg-surface-container-low rounded-lg overflow-hidden transition-all hover:bg-surface-container-high cursor-pointer">
+<div class="h-32 w-full bg-surface-container-highest relative overflow-hidden">
+<img class="w-full h-full object-cover mix-blend-overlay opacity-30 group-hover:scale-105 transition-transform duration-500" data-alt="close-up of clean computer code on a dark screen with syntax highlighting and soft depth of field" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCyxGjAdYH0p6iAKlpVLLBtLcm7RhPAVFh4_w-RTYKKKquoISYwLN45iqEu4dCsfSrxHdnQhA3KgSxONAvr-d-qVItgzMlIGBhjxQEbfJAgEbqfGiOPaT6wAeq24Dd_Lv0aRH2muqya7ietqduLHfG_KTOBSZOxEWE9pdq0C31msNn8hd8brBlsrOGcQZmSa7jrPV2Zeq6cFfHThLT9PdnaR59jL2sI_g7zjpkzAmEhAxn9b5BZIvYzz-uf5LVEGmMB1gf6pukd8Hk"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-low to-transparent"></div>
+<div class="absolute top-4 right-4 bg-primary/10 text-primary text-[10px] font-label font-bold px-2 py-1 rounded-DEFAULT border border-primary/20">ACTIVE</div>
+</div>
+<div class="p-6 pt-0 -mt-8 relative z-10">
+<div class="bg-surface-container-lowest p-5 rounded-lg shadow-sm border border-outline-variant/10">
+<h3 class="text-xl font-bold tracking-tight mb-2 group-hover:text-primary transition-colors">Software Design Tool</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed mb-6">A high-density UI framework for technical documentation and architectural blueprints.</p>
+<div class="grid grid-cols-3 gap-4 border-t border-outline-variant/15 pt-4">
+<div class="flex flex-col">
+<span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Documents</span>
+<span class="font-label text-lg font-bold text-on-surface">5</span>
+</div>
+<div class="flex flex-col border-x border-outline-variant/15 px-4">
+<span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Diagrams</span>
+<span class="font-label text-lg font-bold text-on-surface">3</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Endpoints</span>
+<span class="font-label text-lg font-bold text-on-surface">12</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Project Card 2 -->
+<div class="group relative flex flex-col bg-surface-container-low rounded-lg overflow-hidden transition-all hover:bg-surface-container-high cursor-pointer">
+<div class="h-32 w-full bg-surface-container-highest relative overflow-hidden">
+<img class="w-full h-full object-cover mix-blend-overlay opacity-30 group-hover:scale-105 transition-transform duration-500" data-alt="modern minimalist e-commerce interface on a laptop screen with clean lines and soft lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBpjx5y47Hs4-OzfRAkZuwPeg_nFZ7nrDJao8hZPxmmbbqFT1iu9ory5uEu-Ui39tAtuAyicW0l_yg1TdJdbFFkelmAP8YofrqYJy3SmV9ZTkyncN8WHxOZmECQEoB80cOL--66e9eFBGIkDp_n6Qi2rcJTXUr9xRPDNPqr2IU2aF9dy0xB9JpMhOCgYGfdfGmXWupfspjzYRo6Mib_w93asLDpwQh4RXd9VfeVQeUVHkBakPULtfuIfhp6nbQc3LxiuqDr9GqkUn8"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-low to-transparent"></div>
+<div class="absolute top-4 right-4 bg-tertiary/10 text-tertiary text-[10px] font-label font-bold px-2 py-1 rounded-DEFAULT border border-tertiary/20">PLANNING</div>
+</div>
+<div class="p-6 pt-0 -mt-8 relative z-10">
+<div class="bg-surface-container-lowest p-5 rounded-lg shadow-sm border border-outline-variant/10">
+<h3 class="text-xl font-bold tracking-tight mb-2 group-hover:text-primary transition-colors">E-commerce Platform</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed mb-6">Headless commerce engine with integrated inventory and checkout microservices.</p>
+<div class="grid grid-cols-3 gap-4 border-t border-outline-variant/15 pt-4">
+<div class="flex flex-col">
+<span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Documents</span>
+<span class="font-label text-lg font-bold text-on-surface">24</span>
+</div>
+<div class="flex flex-col border-x border-outline-variant/15 px-4">
+<span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Diagrams</span>
+<span class="font-label text-lg font-bold text-on-surface">8</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Endpoints</span>
+<span class="font-label text-lg font-bold text-on-surface">45</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Project Card 3 -->
+<div class="group relative flex flex-col bg-surface-container-low rounded-lg overflow-hidden transition-all hover:bg-surface-container-high cursor-pointer">
+<div class="h-32 w-full bg-surface-container-highest relative overflow-hidden">
+<img class="w-full h-full object-cover mix-blend-overlay opacity-30 group-hover:scale-105 transition-transform duration-500" data-alt="orderly warehouse shelves with boxes and professional logistics environment with soft morning light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDbu-KsTmw_yAaDTu9C5Gw4IXv6P4F2Vqbz3gMwti-HByjEf1sHR5AbIkZMqo6zoaf4AVouNPPjr1W4zfsgO0amX3hSwREgDECMOu9mzNTj6VGnn5kIs_5xaZeKqiR5B8bMLR-or_t_n7wOKmhZ2usFeaw08q69nYaKHiJZXStbFw2Lje0NnCyFj27wwsfMEAHJa5fLsSsWqI-rLhQm_Qs-sXbmTXeX5O_-7mnGmTtX4kA7uPNIp4e4e5WEmv1SeCEQZdkOnENM79Q"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-low to-transparent"></div>
+<div class="absolute top-4 right-4 bg-secondary/10 text-secondary text-[10px] font-label font-bold px-2 py-1 rounded-DEFAULT border border-secondary/20">ARCHIVED</div>
+</div>
+<div class="p-6 pt-0 -mt-8 relative z-10">
+<div class="bg-surface-container-lowest p-5 rounded-lg shadow-sm border border-outline-variant/10">
+<h3 class="text-xl font-bold tracking-tight mb-2 group-hover:text-primary transition-colors">Inventory Management</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed mb-6">Real-time stock tracking system with automated reorder triggers and analytics.</p>
+<div class="grid grid-cols-3 gap-4 border-t border-outline-variant/15 pt-4">
+<div class="flex flex-col">
+<span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Documents</span>
+<span class="font-label text-lg font-bold text-on-surface">18</span>
+</div>
+<div class="flex flex-col border-x border-outline-variant/15 px-4">
+<span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Diagrams</span>
+<span class="font-label text-lg font-bold text-on-surface">14</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Endpoints</span>
+<span class="font-label text-lg font-bold text-on-surface">32</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- New Project Empty State / Call to Action -->
+<div class="group relative flex flex-col border-2 border-dashed border-outline-variant/30 rounded-lg overflow-hidden transition-all hover:border-primary/40 hover:bg-primary/5 cursor-pointer min-h-[320px] justify-center items-center text-center p-8">
+<div class="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mb-4 group-hover:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined text-3xl text-outline group-hover:text-primary" data-icon="add_circle">add_circle</span>
+</div>
+<h4 class="text-lg font-bold text-on-surface mb-1">Create New Workspace</h4>
+<p class="text-on-surface-variant text-sm max-w-[200px]">Initialize a new architectural design project.</p>
+</div>
+</div>
+<!-- Recent Activity Section (Asymmetric Density) -->
+<section class="mt-20">
+<h2 class="text-sm font-label font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-6 flex items-center gap-3">
+<span class="h-[1px] w-8 bg-outline-variant"></span>
+                System Audit Log
+            </h2>
+<div class="bg-surface-container-low rounded-lg overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-high border-b border-outline-variant/10">
+<th class="px-6 py-4 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Artifact</th>
+<th class="px-6 py-4 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Action</th>
+<th class="px-6 py-4 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">User</th>
+<th class="px-6 py-4 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Timestamp</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/5">
+<tr class="hover:bg-surface-container-highest/50 transition-colors group">
+<td class="px-6 py-3">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-sm text-tertiary" data-icon="description">description</span>
+<span class="text-xs font-medium font-label">PRD_v2.4_Main_Core</span>
+</div>
+</td>
+<td class="px-6 py-3"><span class="text-xs text-on-surface-variant">Commit updated</span></td>
+<td class="px-6 py-3"><span class="text-xs text-on-surface">j.arch@editorial.io</span></td>
+<td class="px-6 py-3 font-label text-[10px] text-on-surface-variant">2023-10-24 14:22:01</td>
+</tr>
+<tr class="hover:bg-surface-container-highest/50 transition-colors group">
+<td class="px-6 py-3">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-sm text-primary" data-icon="account_tree">account_tree</span>
+<span class="text-xs font-medium font-label">SystemArchitecture_Diagram</span>
+</div>
+</td>
+<td class="px-6 py-3"><span class="text-xs text-on-surface-variant">Edge re-routed</span></td>
+<td class="px-6 py-3"><span class="text-xs text-on-surface">m.smith@editorial.io</span></td>
+<td class="px-6 py-3 font-label text-[10px] text-on-surface-variant">2023-10-24 13:05:44</td>
+</tr>
+<tr class="hover:bg-surface-container-highest/50 transition-colors group">
+<td class="px-6 py-3">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-sm text-secondary" data-icon="api">api</span>
+<span class="text-xs font-medium font-label">Inventory_API_Spec</span>
+</div>
+</td>
+<td class="px-6 py-3"><span class="text-xs text-on-surface-variant">Endpoint created</span></td>
+<td class="px-6 py-3"><span class="text-xs text-on-surface">j.arch@editorial.io</span></td>
+<td class="px-6 py-3 font-label text-[10px] text-on-surface-variant">2023-10-24 11:45:12</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</main>
+<!-- Bottom Context Bar (Subtle Info) -->
+<footer class="fixed bottom-0 left-0 right-0 bg-surface-container-low px-6 h-8 flex items-center justify-between z-40">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+<span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Cloud Sync Active</span>
+</div>
+<span class="text-[10px] text-outline-variant">|</span>
+<span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Version 4.8.2-stable</span>
+</div>
+<div class="flex items-center gap-4 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">
+<span>Disk Usage: 14%</span>
+<span>API Rate Limit: 4.8k/5.0k</span>
+</div>
+</footer>
+</body></html>

@@ -67,6 +67,8 @@
         <input type="text" id="verification_method" name="verification_method" value="{{ data.get('verification_method', '') }}" placeholder="How compliance is measured or tested">
     </div>
 
+    {% include "documents/_test_id_fields.html" %}
+
     <div class="form-actions">
         <button type="submit" class="btn btn-primary">{{ "Update" if document else "Create" }}</button>
         <a href="{{ url_for('documents.index', project_id=project.id) }}" class="btn">Cancel</a>

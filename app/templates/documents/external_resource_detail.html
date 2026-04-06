@@ -29,6 +29,7 @@
         {% if data.get('url') %}
         <tr><th>URL</th><td><a href="{{ data.url }}" target="_blank" rel="noopener">{{ data.url }}</a></td></tr>
         {% endif %}
+        {% include "documents/_test_id_display.html" %}
     </table>
 
     {% if data.get('description') %}

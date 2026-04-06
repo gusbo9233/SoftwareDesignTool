@@ -1,0 +1,219 @@
+{% extends "project_layout.html" %}
+{% set active_section = "screens" %}
+
+{% block title %}{{ screen.name }} - {{ project.name }}{% endblock %}
+
+{% block breadcrumb_extra %}
+<span class="text-outline-variant">/</span>
+<a href="{{ url_for('screens.index', project_id=project.id) }}" class="hover:text-primary transition-colors">View Design</a>
+<span class="text-outline-variant">/</span>
+<span>{{ screen.name }}</span>
+{% endblock %}
+
+{% block project_content %}
+{% set sdata = screen.data or {} %}
+
+<div class="page-header">
+    <div>
+        <h1>{{ screen.name }}</h1>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+            <span class="doc-type-badge">{{ device_labels.get(screen.device_type.upper(), screen.device_type) }}</span>
+            {% if sdata.get('prompt') %}
+            <span class="badge">AI Generated</span>
+            {% endif %}
+            {% if sdata.get('generation_status') in ('queued', 'running') %}
+            <span class="badge" style="background: var(--secondary-container); color: var(--on-secondary-container);">Generating</span>
+            {% elif sdata.get('generation_status') == 'failed' %}
+            <span class="badge" style="background: #fee2e2; color: #9f403d;">Generation Failed</span>
+            {% elif sdata.get('generation_status') == 'completed' %}
+            <span class="badge" style="background: #d1fae5; color: #065f46;">Ready</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="actions">
+        {% if sdata.get('stitch_screen_id') %}
+        <a href="{{ url_for('screens.edit_with_ai', project_id=project.id, id=screen.id) }}" class="btn">
+            <span class="material-symbols-outlined text-sm">auto_fix_high</span>
+            Edit with AI
+        </a>
+        <a href="{{ url_for('screens.generate_variants', project_id=project.id, id=screen.id) }}" class="btn">
+            <span class="material-symbols-outlined text-sm">view_carousel</span>
+            Variants
+        </a>
+        {% endif %}
+        <a href="{{ url_for('screens.edit', project_id=project.id, id=screen.id) }}" class="btn">
+            <span class="material-symbols-outlined text-sm">edit</span>
+            Edit
+        </a>
+        <form method="POST" action="{{ url_for('screens.delete', project_id=project.id, id=screen.id) }}" class="inline-form">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this screen?')">
+                <span class="material-symbols-outlined text-sm">delete</span>
+                Delete
+            </button>
+        </form>
+    </div>
+</div>
+
+{% if screen.description %}
+<p style="font-size: 0.9rem; color: var(--on-surface-variant); margin-bottom: 1.5rem;">{{ screen.description }}</p>
+{% endif %}
+
+{% if sdata.get('generation_status') in ('queued', 'running', 'failed') %}
+<div id="generation-status-card" class="artifact-card" style="margin-bottom: 1.5rem; border-left: 4px solid {% if sdata.get('generation_status') == 'failed' %}var(--error){% else %}var(--primary){% endif %};">
+    <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+        <span class="material-symbols-outlined" id="generation-status-icon" style="color: {% if sdata.get('generation_status') == 'failed' %}var(--error){% else %}var(--primary){% endif %};">
+            {% if sdata.get('generation_status') == 'failed' %}error{% else %}progress_activity{% endif %}
+        </span>
+        <div style="flex: 1;">
+            <div id="generation-status-label" style="font-weight: 600; margin-bottom: 0.25rem;">
+                {% if sdata.get('generation_status') == 'queued' %}
+                Waiting to start Stitch generation
+                {% elif sdata.get('generation_status') == 'running' %}
+                Stitch is generating this screen
+                {% else %}
+                Stitch could not generate this screen
+                {% endif %}
+            </div>
+            <p id="generation-status-message" style="margin: 0; color: var(--on-surface-variant); font-size: 0.875rem; white-space: pre-wrap;">
+                {% if sdata.get('generation_status') == 'failed' and sdata.get('generation_error') %}
+                {{ sdata.get('generation_error') }}
+                {% else %}
+                This page checks for updates automatically. You can leave and come back later.
+                {% endif %}
+            </p>
+            {% if sdata.get('generation_status') == 'failed' and sdata.get('generation_error_details') %}
+            <details style="margin-top: 0.75rem;">
+                <summary style="cursor: pointer; font-size: 0.8125rem; color: var(--on-surface-variant);">Technical details</summary>
+                <pre style="margin: 0.5rem 0 0; padding: 0.75rem; background: var(--surface-container-lowest); border-radius: var(--radius-sm); overflow-x: auto; font-size: 0.75rem; white-space: pre-wrap;">{{ sdata.get('generation_error_details') }}</pre>
+            </details>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Screen Preview -->
+{% if sdata.get('html') %}
+<div style="margin-bottom: 1.5rem;">
+    <h3 class="document-content" style="font-size: 0.6875rem; font-family: 'Space Grotesk', sans-serif; text-transform: uppercase; letter-spacing: 0.12em; color: var(--on-surface-variant); margin-bottom: 0.75rem; font-weight: 700;">
+        Preview
+    </h3>
+    <div style="background: var(--surface-container-lowest); border-radius: var(--radius-md); overflow: hidden; box-shadow: 0 1px 3px rgba(43,52,55,0.06);">
+        <iframe srcdoc="{{ sdata['html'] | e }}" sandbox="" style="width: 100%; min-height: 600px; border: none; display: block;"></iframe>
+    </div>
+</div>
+{% elif sdata.get('image_url') %}
+<div style="margin-bottom: 1.5rem;">
+    <h3 class="document-content" style="font-size: 0.6875rem; font-family: 'Space Grotesk', sans-serif; text-transform: uppercase; letter-spacing: 0.12em; color: var(--on-surface-variant); margin-bottom: 0.75rem; font-weight: 700;">
+        Preview
+    </h3>
+    <div style="background: var(--surface-container-lowest); border-radius: var(--radius-md); overflow: hidden; box-shadow: 0 1px 3px rgba(43,52,55,0.06); text-align: center; padding: 1rem;">
+        <img src="{{ sdata['image_url'] }}" alt="{{ screen.name }}" style="max-width: 100%; border-radius: var(--radius-sm);">
+    </div>
+</div>
+{% else %}
+<div style="margin-bottom: 1.5rem; padding: 3rem; text-align: center; background: var(--surface-container); border-radius: var(--radius-md);">
+    <span class="material-symbols-outlined" style="font-size: 3rem; color: var(--outline-variant); display: block; margin-bottom: 0.5rem;">devices</span>
+    <p style="color: var(--on-surface-variant); font-size: 0.875rem;">No preview available. Add HTML content or generate with AI.</p>
+</div>
+{% endif %}
+
+<!-- Metadata -->
+<div class="document-content">
+    {% if sdata.get('prompt') %}
+    <h3>Generation Prompt</h3>
+    <div class="story-preview" style="margin-bottom: 1rem;">
+        <p style="font-size: 0.9rem; margin: 0;">{{ sdata['prompt'] }}</p>
+    </div>
+    {% endif %}
+
+    {% if sdata.get('last_edit_prompt') %}
+    <h3>Last AI Edit</h3>
+    <p>{{ sdata['last_edit_prompt'] }}</p>
+    {% endif %}
+
+    {% if sdata.get('stitch_project_id') or sdata.get('stitch_screen_id') %}
+    <h3>Stitch Reference</h3>
+    <div class="detail-grid">
+        {% if sdata.get('stitch_project_id') %}
+        <div class="detail-item">
+            <span class="detail-label">Project ID</span>
+            <span style="font-size: 0.875rem; font-family: 'Space Grotesk', monospace;">{{ sdata['stitch_project_id'] }}</span>
+        </div>
+        {% endif %}
+        {% if sdata.get('stitch_screen_id') %}
+        <div class="detail-item">
+            <span class="detail-label">Screen ID</span>
+            <span style="font-size: 0.875rem; font-family: 'Space Grotesk', monospace;">{{ sdata['stitch_screen_id'] }}</span>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<div class="meta">
+    Created {{ screen.created_at.strftime('%Y-%m-%d %H:%M') }}
+    &middot; Updated {{ screen.updated_at.strftime('%Y-%m-%d %H:%M') }}
+</div>
+{% if sdata.get('generation_status') in ('queued', 'running', 'failed') %}
+<script>
+(function() {
+    var statusCard = document.getElementById('generation-status-card');
+    if (!statusCard) return;
+
+    var statusLabel = document.getElementById('generation-status-label');
+    var statusMessage = document.getElementById('generation-status-message');
+    var statusIcon = document.getElementById('generation-status-icon');
+    var screenId = {{ screen.id|tojson }};
+    var active = true;
+
+    function renderStatus(data) {
+        var screenData = data.data || {};
+        var status = screenData.generation_status;
+        var error = screenData.generation_error || '';
+
+        if (status === 'completed') {
+            window.location.reload();
+            return;
+        }
+
+        if (status === 'failed') {
+            statusCard.style.borderLeftColor = 'var(--error)';
+            statusLabel.textContent = 'Stitch could not generate this screen';
+            statusMessage.textContent = error || 'Generation failed.';
+            statusIcon.textContent = 'error';
+            statusIcon.style.color = 'var(--error)';
+            active = false;
+            return;
+        }
+
+        statusCard.style.borderLeftColor = 'var(--primary)';
+        statusIcon.style.color = 'var(--primary)';
+        statusIcon.textContent = 'progress_activity';
+        statusLabel.textContent = status === 'running'
+            ? 'Stitch is generating this screen'
+            : 'Waiting to start Stitch generation';
+        statusMessage.textContent = 'This page checks for updates automatically. You can leave and come back later.';
+    }
+
+    function poll() {
+        if (!active) return;
+
+        fetch('/api/screens/' + screenId)
+            .then(function(response) { return response.json(); })
+            .then(renderStatus)
+            .catch(function() {
+                statusMessage.textContent = 'Still trying to refresh generation status.';
+            })
+            .finally(function() {
+                if (active) {
+                    window.setTimeout(poll, 3000);
+                }
+            });
+    }
+
+    window.setTimeout(poll, 3000);
+})();
+</script>
+{% endif %}
+{% endblock %}

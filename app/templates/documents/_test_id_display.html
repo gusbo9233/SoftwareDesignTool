@@ -1,0 +1,11 @@
+{% if data.get('test_name') %}
+<tr><th>Test Name</th><td><code>{{ data.test_name }}</code></td></tr>
+{% endif %}
+{% if data.get('test_uid') %}
+<tr>
+    <th>Test UID</th>
+    <td><code style="user-select:all;">{{ data.test_uid }}</code>
+        <br><small>Include this UID in test method names for automatic CI linking.</small>
+    </td>
+</tr>
+{% endif %}

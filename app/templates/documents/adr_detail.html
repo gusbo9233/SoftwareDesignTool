@@ -25,6 +25,7 @@
 <div class="document-content">
     <table class="detail-table">
         <tr><th>Status</th><td>{{ data.get('status', 'proposed') | capitalize }}</td></tr>
+        {% include "documents/_test_id_display.html" %}
     </table>
 
     <h3>Context</h3>

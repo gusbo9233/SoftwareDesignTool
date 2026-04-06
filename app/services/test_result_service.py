@@ -1,10 +1,20 @@
 """Service for fetching CI test results from GitHub and parsing JUnit XML."""
+import hashlib
 import xml.etree.ElementTree as ET
 from types import SimpleNamespace
 from datetime import datetime
 
 import app as _app
 from app.services.github_service import GitHubService
+
+
+def generate_test_uid(test_name: str) -> str:
+    """Generate a short deterministic ID from a test case name.
+
+    Returns an 8-character hex string.  Same name always produces the same ID,
+    so developers can derive it when writing test methods.
+    """
+    return hashlib.sha256(test_name.strip().lower().encode()).hexdigest()[:8]
 
 
 def _parse_dt(s):
@@ -189,7 +199,7 @@ class TestResultService:
         """Bulk insert test case results for a run."""
         rows = []
         for tc in test_cases:
-            rows.append({
+            row = {
                 "test_run_id": test_run_id,
                 "test_name": tc["test_name"],
                 "class_name": tc.get("class_name"),
@@ -197,9 +207,52 @@ class TestResultService:
                 "duration_seconds": tc.get("duration_seconds"),
                 "failure_message": tc.get("failure_message"),
                 "failure_output": tc.get("failure_output"),
-            })
+            }
+            if tc.get("linked_acceptance_test_id"):
+                row["linked_acceptance_test_id"] = tc["linked_acceptance_test_id"]
+            rows.append(row)
         for row in rows:
             _app.supabase.table("test_results").insert(row).execute()
+
+    @staticmethod
+    def _resolve_linked_documents(project_id, test_cases):
+        """Match test_uid values found in CI test names to project documents.
+
+        Scans all documents in the project that have a ``test_uid`` in their
+        data and checks whether that UID appears in each CI test name.
+        Mutates each test case dict in-place, setting
+        ``linked_acceptance_test_id`` when a match is found.
+        """
+        from app.services.document_service import DocumentService
+        all_docs = DocumentService.get_all_for_project(project_id)
+        # Build lookup: test_uid → document id
+        uid_to_doc: dict[str, str] = {}
+        for doc in all_docs:
+            test_uid = (doc.data or {}).get("test_uid")
+            if test_uid:
+                uid_to_doc[test_uid] = doc.id
+
+        if not uid_to_doc:
+            return
+
+        for tc in test_cases:
+            name_lower = tc["test_name"].lower()
+            for uid, doc_id in uid_to_doc.items():
+                if uid in name_lower:
+                    tc["linked_acceptance_test_id"] = doc_id
+                    break
+
+    @staticmethod
+    def get_linked_results_for_acceptance_test(acceptance_test_id):
+        """Get the most recent CI test results linked to an acceptance test."""
+        res = (
+            _app.supabase.table("test_results")
+            .select("*, test_runs(*)")
+            .eq("linked_acceptance_test_id", acceptance_test_id)
+            .order("test_run_id", desc=True)
+            .execute()
+        )
+        return [_result(d) for d in res.data]
 
     @staticmethod
     def sync_workflow_runs(project_id, git_connection):
@@ -256,6 +309,7 @@ class TestResultService:
                                     "duration_seconds": summary["duration_seconds"],
                                 }).eq("id", run_record.id).execute()
 
+                                TestResultService._resolve_linked_documents(project_id, cases)
                                 TestResultService.create_results(run_record.id, cases)
                                 run_record.total_tests = summary["total_tests"]
                                 run_record.passed = summary["passed"]

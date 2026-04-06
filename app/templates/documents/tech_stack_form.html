@@ -47,6 +47,8 @@
         <button type="button" class="btn btn-small" onclick="addTechRow()">+ Add Technology</button>
     </fieldset>
 
+    {% include "documents/_test_id_fields.html" %}
+
     <div class="form-actions">
         <button type="submit" class="btn btn-primary">{{ "Update" if document else "Create" }}</button>
         <a href="{{ url_for('documents.index', project_id=project.id) }}" class="btn">Cancel</a>

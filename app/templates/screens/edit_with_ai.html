@@ -1,0 +1,57 @@
+{% extends "project_layout.html" %}
+{% set active_section = "screens" %}
+
+{% block title %}Edit with AI - {{ screen.name }} - {{ project.name }}{% endblock %}
+
+{% block breadcrumb_extra %}
+<span class="text-outline-variant">/</span>
+<a href="{{ url_for('screens.index', project_id=project.id) }}" class="hover:text-primary transition-colors">View Design</a>
+<span class="text-outline-variant">/</span>
+<a href="{{ url_for('screens.detail', project_id=project.id, id=screen.id) }}" class="hover:text-primary transition-colors">{{ screen.name }}</a>
+<span class="text-outline-variant">/</span>
+<span>Edit with AI</span>
+{% endblock %}
+
+{% block project_content %}
+<h1>Edit "{{ screen.name }}" with AI</h1>
+<p style="color: var(--on-surface-variant); font-size: 0.9rem; margin-bottom: 1.5rem;">
+    Describe the changes you want to make to this screen.
+</p>
+
+{% set sdata = screen.data or {} %}
+{% if sdata.get('html') %}
+<div style="margin-bottom: 1.5rem;">
+    <div style="font-size: 0.6875rem; font-family: 'Space Grotesk', sans-serif; text-transform: uppercase; letter-spacing: 0.12em; color: var(--on-surface-variant); margin-bottom: 0.5rem; font-weight: 700;">Current Preview</div>
+    <div style="background: var(--surface-container-lowest); border-radius: var(--radius-md); overflow: hidden; box-shadow: 0 1px 3px rgba(43,52,55,0.06);">
+        <iframe srcdoc="{{ sdata['html'] | e }}" sandbox="" style="width: 100%; height: 300px; border: none; display: block;"></iframe>
+    </div>
+</div>
+{% endif %}
+
+<form method="POST" class="form form-wide" id="edit-form">
+    <div class="form-group">
+        <label for="prompt">Edit Prompt</label>
+        <textarea id="prompt" name="prompt" rows="4" placeholder="e.g. 'Make the background darker and add a footer with copyright text'" required></textarea>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="edit-btn">
+            <span class="material-symbols-outlined text-sm">auto_fix_high</span>
+            Apply Changes
+        </button>
+        <a href="{{ url_for('screens.detail', project_id=project.id, id=screen.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+
+<script>
+document.getElementById('edit-form').addEventListener('submit', function() {
+    var btn = document.getElementById('edit-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-outlined text-sm" style="animation: spin 1s linear infinite;">progress_activity</span> Applying...';
+    btn.style.opacity = '0.7';
+});
+</script>
+<style>
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+{% endblock %}

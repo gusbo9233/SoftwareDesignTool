@@ -1,0 +1,124 @@
+{% extends "project_layout.html" %}
+{% set active_section = "screens" %}
+
+{% block title %}{{ "Edit" if design_system else "Set Up" }} Design System - {{ project.name }}{% endblock %}
+
+{% block breadcrumb_extra %}
+<span class="text-outline-variant">/</span>
+<a href="{{ url_for('screens.index', project_id=project.id) }}" class="hover:text-primary transition-colors">View Design</a>
+<span class="text-outline-variant">/</span>
+<a href="{{ url_for('screens.design_system', project_id=project.id) }}" class="hover:text-primary transition-colors">Design System</a>
+<span class="text-outline-variant">/</span>
+<span>{{ "Edit" if design_system else "Set Up" }}</span>
+{% endblock %}
+
+{% block project_content %}
+<h1>{{ "Edit" if design_system else "Set Up" }} Design System</h1>
+
+<form method="POST" class="form form-wide">
+    <div class="form-group">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" value="{{ design_system.name if design_system else project.name + ' Design System' }}" placeholder="Design system name">
+    </div>
+
+    <fieldset>
+        <legend>Colors</legend>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="custom_color">Primary Color</label>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <input type="color" id="custom_color" name="custom_color" value="{{ data.get('custom_color', '#005db5') }}" style="width: 3rem; height: 2.25rem; padding: 0.125rem; cursor: pointer;">
+                    <input type="text" id="custom_color_hex" value="{{ data.get('custom_color', '#005db5') }}" style="width: 8rem;" placeholder="#005db5">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="color_mode">Color Mode</label>
+                <select id="color_mode" name="color_mode">
+                    <option value="LIGHT" {% if data.get('color_mode') == 'LIGHT' %}selected{% endif %}>Light</option>
+                    <option value="DARK" {% if data.get('color_mode') == 'DARK' %}selected{% endif %}>Dark</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="color_variant">Color Variant</label>
+            <select id="color_variant" name="color_variant">
+                {% for key, label in color_variant_choices %}
+                <option value="{{ key }}" {% if data.get('color_variant') == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Typography</legend>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="headline_font">Headline Font</label>
+                <select id="headline_font" name="headline_font">
+                    {% for key, label in font_choices %}
+                    <option value="{{ key }}" {% if data.get('headline_font') == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="body_font">Body Font</label>
+                <select id="body_font" name="body_font">
+                    {% for key, label in font_choices %}
+                    <option value="{{ key }}" {% if data.get('body_font') == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="label_font">Label Font (optional)</label>
+                <select id="label_font" name="label_font">
+                    <option value="">— Same as body —</option>
+                    {% for key, label in font_choices %}
+                    <option value="{{ key }}" {% if data.get('label_font') == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="roundness">Roundness</label>
+                <select id="roundness" name="roundness">
+                    {% for key, label in roundness_choices %}
+                    <option value="{{ key }}" {% if data.get('roundness') == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </fieldset>
+
+    <div class="form-group">
+        <label for="design_md">Design Guidelines (Markdown)</label>
+        <textarea id="design_md" name="design_md" rows="8" placeholder="Additional design guidelines, brand rules, component patterns...">{{ data.get('design_md', '') }}</textarea>
+    </div>
+
+    <fieldset>
+        <legend>Stitch Sync</legend>
+        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; cursor: pointer; padding-top: 0.5rem;">
+            <input type="checkbox" name="sync_to_stitch">
+            Sync this design system to Google Stitch
+        </label>
+        <p style="font-size: 0.8125rem; color: var(--on-surface-variant); margin-top: 0.375rem;">
+            When enabled, saving will also create or update the design system in Stitch so generated screens follow these guidelines.
+        </p>
+    </fieldset>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ "Update" if design_system else "Create" }}</button>
+        <a href="{{ url_for('screens.design_system', project_id=project.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+
+<script>
+// Sync color picker and hex input
+var picker = document.getElementById('custom_color');
+var hex = document.getElementById('custom_color_hex');
+picker.addEventListener('input', function() { hex.value = picker.value; });
+hex.addEventListener('input', function() {
+    if (/^#[0-9a-fA-F]{6}$/.test(hex.value)) picker.value = hex.value;
+});
+</script>
+{% endblock %}

@@ -247,8 +247,28 @@ def api_test_run_detail(project_id, run_id):
             "duration_seconds": r.duration_seconds,
             "failure_message": r.failure_message,
             "failure_output": r.failure_output,
+            "linked_acceptance_test_id": getattr(r, "linked_acceptance_test_id", None),
         } for r in results],
     })
+
+
+# ---------------------------------------------------------------------------
+# API: CI results linked to an acceptance test
+# ---------------------------------------------------------------------------
+
+@github_bp.route("/api/projects/<project_id>/github/acceptance-tests/<acceptance_test_id>/results")
+def api_acceptance_test_results(project_id, acceptance_test_id):
+    results = TestResultService.get_linked_results_for_acceptance_test(acceptance_test_id)
+    return jsonify([{
+        "id": r.id,
+        "test_name": r.test_name,
+        "class_name": r.class_name,
+        "status": r.status,
+        "duration_seconds": r.duration_seconds,
+        "failure_message": r.failure_message,
+        "failure_output": r.failure_output,
+        "test_run": r.test_runs if isinstance(r.test_runs, dict) else None,
+    } for r in results])
 
 
 # ---------------------------------------------------------------------------

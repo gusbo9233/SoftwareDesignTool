@@ -1,0 +1,63 @@
+{% extends "project_layout.html" %}
+{% set active_section = "screens" %}
+
+{% block title %}Generate Screen - {{ project.name }}{% endblock %}
+
+{% block breadcrumb_extra %}
+<span class="text-outline-variant">/</span>
+<a href="{{ url_for('screens.index', project_id=project.id) }}" class="hover:text-primary transition-colors">View Design</a>
+<span class="text-outline-variant">/</span>
+<span>Generate Screen</span>
+{% endblock %}
+
+{% block project_content %}
+<h1>Generate Screen with AI</h1>
+<p style="color: var(--on-surface-variant); font-size: 0.9rem; margin-bottom: 1.5rem;">
+    Describe the screen you want and Stitch AI will generate it for you in the background.
+</p>
+<p style="color: var(--on-surface-variant); font-size: 0.9rem; margin-bottom: 1.5rem;">
+    You will be redirected to the new screen immediately, where you can follow progress and see any errors if generation fails.
+</p>
+
+<form method="POST" class="form form-wide" id="generate-form">
+    <div class="form-group">
+        <label for="prompt">Prompt</label>
+        <textarea id="prompt" name="prompt" rows="5" placeholder="Describe the screen you want, e.g. 'A modern login page with email and password fields, a social login section with Google and GitHub buttons, and a forgot password link. Use a clean, minimal style.'" required></textarea>
+    </div>
+
+    <div class="form-row">
+        <div class="form-group">
+            <label for="name">Screen Name</label>
+            <input type="text" id="name" name="name" placeholder="e.g. Login Screen (optional, auto-generated if empty)">
+        </div>
+        <div class="form-group">
+            <label for="device_type">Device Type</label>
+            <select id="device_type" name="device_type">
+                {% for key, label in device_types.items() %}
+                <option value="{{ key }}" {% if key == 'DESKTOP' %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="generate-btn">
+            <span class="material-symbols-outlined text-sm">auto_awesome</span>
+            Generate
+        </button>
+        <a href="{{ url_for('screens.index', project_id=project.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+
+<script>
+document.getElementById('generate-form').addEventListener('submit', function() {
+    var btn = document.getElementById('generate-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-outlined text-sm" style="animation: spin 1s linear infinite;">progress_activity</span> Starting...';
+    btn.style.opacity = '0.7';
+});
+</script>
+<style>
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+{% endblock %}

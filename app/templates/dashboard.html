@@ -52,7 +52,9 @@
                         </div>
                     </div>
                     <div class="mt-3">
-                        <span class="font-label text-[10px] text-outline">Updated {{ project.updated_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                        <span class="font-label text-[10px] text-outline">
+                            Updated {{ project.updated_at[:16].replace('T', ' ') if project.updated_at is string else project.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                        </span>
                     </div>
                 </div>
             </div>

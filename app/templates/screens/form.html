@@ -1,0 +1,52 @@
+{% extends "project_layout.html" %}
+{% set active_section = "screens" %}
+
+{% block title %}{{ "Edit" if screen else "New" }} Screen - {{ project.name }}{% endblock %}
+
+{% block breadcrumb_extra %}
+<span class="text-outline-variant">/</span>
+<a href="{{ url_for('screens.index', project_id=project.id) }}" class="hover:text-primary transition-colors">View Design</a>
+<span class="text-outline-variant">/</span>
+<span>{{ "Edit" if screen else "New" }} Screen</span>
+{% endblock %}
+
+{% block project_content %}
+<h1>{{ "Edit" if screen else "New" }} Screen</h1>
+
+<form method="POST" class="form form-wide">
+    <div class="form-row">
+        <div class="form-group">
+            <label for="name">Screen Name</label>
+            <input type="text" id="name" name="name" value="{{ screen.name if screen else '' }}" placeholder="e.g. Login Screen" required>
+        </div>
+        <div class="form-group">
+            <label for="device_type">Device Type</label>
+            <select id="device_type" name="device_type">
+                {% for key, label in device_types.items() %}
+                <option value="{{ key }}" {% if (screen and screen.device_type.upper() == key) or (not screen and key == 'DESKTOP') %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="3" placeholder="Brief description of this screen...">{{ screen.description if screen else '' }}</textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="html_content">HTML Content</label>
+        <textarea id="html_content" name="html_content" rows="12" placeholder="Paste HTML content here (optional)...">{{ data.get('html', '') }}</textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="image_url">Image URL</label>
+        <input type="url" id="image_url" name="image_url" value="{{ data.get('image_url', '') }}" placeholder="https://...">
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ "Update" if screen else "Create" }}</button>
+        <a href="{{ url_for('screens.index', project_id=project.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends "project_layout.html" %}
+{% set active_section = "screens" %}
+
+{% block title %}Generate Variants - {{ screen.name }} - {{ project.name }}{% endblock %}
+
+{% block breadcrumb_extra %}
+<span class="text-outline-variant">/</span>
+<a href="{{ url_for('screens.index', project_id=project.id) }}" class="hover:text-primary transition-colors">View Design</a>
+<span class="text-outline-variant">/</span>
+<a href="{{ url_for('screens.detail', project_id=project.id, id=screen.id) }}" class="hover:text-primary transition-colors">{{ screen.name }}</a>
+<span class="text-outline-variant">/</span>
+<span>Variants</span>
+{% endblock %}
+
+{% block project_content %}
+<h1>Generate Variants of "{{ screen.name }}"</h1>
+<p style="color: var(--on-surface-variant); font-size: 0.9rem; margin-bottom: 1.5rem;">
+    Create variations of this screen with different layouts, colors, or content.
+</p>
+
+<form method="POST" class="form form-wide" id="variant-form">
+    <div class="form-group">
+        <label for="prompt">Prompt (optional)</label>
+        <textarea id="prompt" name="prompt" rows="3" placeholder="Any specific direction for the variants, e.g. 'Try different color schemes'"></textarea>
+    </div>
+
+    <div class="form-row">
+        <div class="form-group">
+            <label for="variant_count">Number of Variants</label>
+            <select id="variant_count" name="variant_count">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3" selected>3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="creative_range">Creative Range</label>
+            <select id="creative_range" name="creative_range">
+                <option value="REFINE">Refine (subtle changes)</option>
+                <option value="EXPLORE" selected>Explore (balanced)</option>
+                <option value="REIMAGINE">Reimagine (radical changes)</option>
+            </select>
+        </div>
+    </div>
+
+    <fieldset>
+        <legend>Aspects to Vary</legend>
+        <div style="display: flex; flex-wrap: wrap; gap: 1rem; padding-top: 0.5rem;">
+            <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.875rem; cursor: pointer;">
+                <input type="checkbox" name="aspects" value="LAYOUT"> Layout
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.875rem; cursor: pointer;">
+                <input type="checkbox" name="aspects" value="COLOR_SCHEME"> Colors
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.875rem; cursor: pointer;">
+                <input type="checkbox" name="aspects" value="TEXT_FONT"> Fonts
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.875rem; cursor: pointer;">
+                <input type="checkbox" name="aspects" value="TEXT_CONTENT"> Content
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.875rem; cursor: pointer;">
+                <input type="checkbox" name="aspects" value="IMAGES"> Images
+            </label>
+        </div>
+    </fieldset>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="variant-btn">
+            <span class="material-symbols-outlined text-sm">view_carousel</span>
+            Generate Variants
+        </button>
+        <a href="{{ url_for('screens.detail', project_id=project.id, id=screen.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+
+<script>
+document.getElementById('variant-form').addEventListener('submit', function() {
+    var btn = document.getElementById('variant-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-outlined text-sm" style="animation: spin 1s linear infinite;">progress_activity</span> Generating...';
+    btn.style.opacity = '0.7';
+});
+</script>
+<style>
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+{% endblock %}

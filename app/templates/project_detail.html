@@ -14,7 +14,9 @@
         <p class="text-on-surface-variant text-sm mt-2 max-w-xl leading-relaxed">{{ project.description }}</p>
         {% endif %}
         <span class="font-label text-[10px] text-outline mt-2 block">
-            Created {{ project.created_at.strftime('%Y-%m-%d') }} &nbsp;·&nbsp; Updated {{ project.updated_at.strftime('%Y-%m-%d %H:%M') }}
+            Created {{ project.created_at[:10] if project.created_at is string else project.created_at.strftime('%Y-%m-%d') }}
+            &nbsp;·&nbsp;
+            Updated {{ project.updated_at[:16].replace('T', ' ') if project.updated_at is string else project.updated_at.strftime('%Y-%m-%d %H:%M') }}
         </span>
     </div>
     <div class="flex items-center gap-2 shrink-0">

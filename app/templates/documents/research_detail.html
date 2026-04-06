@@ -30,6 +30,10 @@
 </div>
 {% endif %}
 
+<table class="detail-table">
+    {% include "documents/_test_id_display.html" %}
+</table>
+
 <div class="document-content">
     {% if data.get('body') %}
     <pre class="research-body">{{ data.body }}</pre>

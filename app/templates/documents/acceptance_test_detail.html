@@ -25,6 +25,7 @@
 <div class="document-content">
     <table class="detail-table">
         <tr><th>Status</th><td>{{ data.get('status', 'draft') | capitalize }}</td></tr>
+        {% include "documents/_test_id_display.html" %}
         {% if data.get('requirement_reference') %}
         <tr><th>Requirement Ref</th><td>{{ data.requirement_reference }}</td></tr>
         {% endif %}

@@ -31,6 +31,7 @@ frontend/.env.local
 # Environment
 .env
 .env.*
+.mcp.json
 
 # IDE
 .vscode/

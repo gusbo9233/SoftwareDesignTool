@@ -20,6 +20,8 @@
         <input type="text" id="title" name="title" value="{{ data.get('title', '') }}" placeholder="Short scenario name" required>
     </div>
 
+    {% include "documents/_test_id_fields.html" %}
+
     <div class="form-row">
         <div class="form-group">
             <label for="requirement_reference">Requirement Reference</label>

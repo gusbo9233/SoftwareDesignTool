@@ -3,6 +3,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 from app.services.project_service import ProjectService
 from app.services.document_service import DocumentService
 from app.services.traceability_service import TraceabilityService
+from app.services.test_result_service import generate_test_uid
 
 documents_bp = Blueprint("documents", __name__)
 
@@ -35,6 +36,17 @@ TEMPLATE_MAP = {
     "external_resource": "documents/external_resource_form.html",
     "research": "documents/research_form.html",
 }
+
+
+def _apply_test_id_fields(form, data):
+    """Inject test_name / test_uid into any document's data dict."""
+    test_name = form.get("test_name", "").strip()
+    if test_name:
+        data["test_name"] = test_name
+        data["test_uid"] = generate_test_uid(test_name)
+    else:
+        data.pop("test_name", None)
+        data.pop("test_uid", None)
 
 
 def _get_project_or_redirect(project_id):
@@ -392,6 +404,7 @@ def create(project_id, doc_type):
     if request.method == "POST":
         parser = PARSERS[doc_type]
         data = parser(request.form)
+        _apply_test_id_fields(request.form, data)
         error = _validate_document_data(doc_type, data)
         if error:
             flash(error, "error")
@@ -470,6 +483,7 @@ def edit(project_id, id):
     if request.method == "POST":
         parser = PARSERS[doc.type]
         data = parser(request.form)
+        _apply_test_id_fields(request.form, data)
         error = _validate_document_data(doc.type, data)
         if error:
             flash(error, "error")

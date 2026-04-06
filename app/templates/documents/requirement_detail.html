@@ -27,6 +27,7 @@
         <tr><th>Category</th><td>{{ data.get('category', '—') }}</td></tr>
         <tr><th>Priority</th><td>{{ data.get('priority', 'should') | capitalize }}</td></tr>
         <tr><th>Status</th><td>{{ data.get('status', 'draft') | capitalize }}</td></tr>
+        {% include "documents/_test_id_display.html" %}
     </table>
 
     <h3>Description</h3>

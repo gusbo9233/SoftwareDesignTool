@@ -30,6 +30,7 @@
         {% if data.get('verification_method') %}
         <tr><th>Verification</th><td>{{ data.verification_method }}</td></tr>
         {% endif %}
+        {% include "documents/_test_id_display.html" %}
     </table>
 
     <h3>Description</h3>

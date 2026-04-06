@@ -5,6 +5,8 @@ from app.services.api_endpoint_service import APIEndpointService
 from app.services.traceability_service import TraceabilityService
 from app.services.test_result_service import TestResultService
 from app.services.git_connection_service import GitConnectionService
+from app.services.screen_service import ScreenService
+from app.services.design_system_service import DesignSystemService
 
 
 class ExportService:
@@ -122,6 +124,8 @@ class ExportService:
                 acceptance_tests.append({
                     "id": doc.id,
                     "title": data.get("title", ""),
+                    "test_name": data.get("test_name", ""),
+                    "test_uid": data.get("test_uid", ""),
                     "requirement_reference": data.get("requirement_reference", ""),
                     "user_story_reference": data.get("user_story_reference", ""),
                     "preconditions": data.get("preconditions", ""),
@@ -176,6 +180,7 @@ class ExportService:
 
         # CI status from GitHub integration
         ci_status = None
+        ci_test_mapping = []
         git_conn = GitConnectionService.get_for_project(project_id)
         if git_conn:
             runs = TestResultService.get_runs_for_project(project_id, limit=1)
@@ -191,6 +196,46 @@ class ExportService:
                     "failed": latest.failed,
                     "skipped": latest.skipped,
                 }
+                # Include per-test mappings to acceptance tests
+                results = TestResultService.get_results_for_run(latest.id)
+                for r in results:
+                    linked_id = getattr(r, "linked_acceptance_test_id", None)
+                    if linked_id:
+                        ci_test_mapping.append({
+                            "test_name": r.test_name,
+                            "status": r.status,
+                            "acceptance_test_id": linked_id,
+                        })
+
+        # Screens & Design System
+        screens = ScreenService.get_all_for_project(project_id)
+        screen_list = []
+        for s in screens:
+            sdata = s.data or {}
+            screen_list.append({
+                "id": s.id,
+                "name": s.name,
+                "device_type": s.device_type,
+                "description": s.description or "",
+                "prompt": sdata.get("prompt", ""),
+                "image_url": sdata.get("image_url", ""),
+                "has_html": bool(sdata.get("html")),
+                "tags": sdata.get("tags", []),
+            })
+
+        ds = DesignSystemService.get_for_project(project_id)
+        design_system_data = None
+        if ds:
+            dsdata = ds.data or {}
+            design_system_data = {
+                "name": ds.name,
+                "color_mode": dsdata.get("color_mode", ""),
+                "custom_color": dsdata.get("custom_color", ""),
+                "headline_font": dsdata.get("headline_font", ""),
+                "body_font": dsdata.get("body_font", ""),
+                "roundness": dsdata.get("roundness", ""),
+                "color_variant": dsdata.get("color_variant", ""),
+            }
 
         return {
             "project": project.name,
@@ -211,6 +256,9 @@ class ExportService:
             "api_endpoints": api_list,
             "traceability": traceability,
             "ci_status": ci_status,
+            "ci_test_mapping": ci_test_mapping,
+            "screens": screen_list,
+            "design_system": design_system_data,
         }
 
     @staticmethod
@@ -354,6 +402,10 @@ class ExportService:
             lines.append("\n## Acceptance Tests\n")
             for at in data["acceptance_tests"]:
                 lines.append(f"### {at['title']}")
+                if at.get("test_name"):
+                    lines.append(f"- **Test Name:** `{at['test_name']}`")
+                if at.get("test_uid"):
+                    lines.append(f"- **Test UID:** `{at['test_uid']}`")
                 lines.append(f"- **Status:** {at['status']}")
                 if at["requirement_reference"]:
                     lines.append(f"- **Requirement:** {at['requirement_reference']}")
@@ -513,6 +565,48 @@ class ExportService:
             if ci.get("total_tests") is not None:
                 lines.append(f"- **Tests:** {ci['passed'] or 0} passed, {ci['failed'] or 0} failed, {ci['skipped'] or 0} skipped ({ci['total_tests']} total)")
             lines.append("")
+
+        if data.get("ci_test_mapping"):
+            lines.append("\n## CI Test → Acceptance Test Mapping\n")
+            lines.append("| Test Name | CI Status | Acceptance Test ID |")
+            lines.append("|---|---|---|")
+            for m in data["ci_test_mapping"]:
+                lines.append(f"| {m['test_name']} | {m['status']} | {m['acceptance_test_id']} |")
+            lines.append("")
+
+        # Design System
+        if data.get("design_system"):
+            ds = data["design_system"]
+            lines.append("\n## Design System\n")
+            lines.append(f"**{ds['name']}**\n")
+            if ds["custom_color"]:
+                lines.append(f"- **Primary Color:** {ds['custom_color']}")
+            if ds["headline_font"]:
+                lines.append(f"- **Headline Font:** {ds['headline_font'].replace('_', ' ').title()}")
+            if ds["body_font"]:
+                lines.append(f"- **Body Font:** {ds['body_font'].replace('_', ' ').title()}")
+            if ds["color_mode"]:
+                lines.append(f"- **Color Mode:** {ds['color_mode']}")
+            if ds["roundness"]:
+                lines.append(f"- **Roundness:** {ds['roundness'].replace('ROUND_', '')}")
+            if ds["color_variant"]:
+                lines.append(f"- **Color Variant:** {ds['color_variant'].replace('_', ' ').title()}")
+            lines.append("")
+
+        # Screens
+        if data.get("screens"):
+            lines.append("\n## UI Screen Designs\n")
+            for scr in data["screens"]:
+                lines.append(f"### {scr['name']} ({scr['device_type'].title()})")
+                if scr["description"]:
+                    lines.append(f"\n{scr['description']}")
+                if scr["prompt"]:
+                    lines.append(f"\n**Prompt:** {scr['prompt']}")
+                if scr["has_html"]:
+                    lines.append("- Has HTML preview")
+                if scr["image_url"]:
+                    lines.append(f"- **Image:** {scr['image_url']}")
+                lines.append("")
 
         # Filter out empty strings from conditional lines
         return "\n".join(line for line in lines if line is not None)

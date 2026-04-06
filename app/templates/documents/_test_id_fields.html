@@ -1,0 +1,13 @@
+<div class="form-group">
+    <label for="test_name">Test Name <small>(optional)</small></label>
+    <input type="text" id="test_name" name="test_name" value="{{ data.get('test_name', '') }}" placeholder="e.g. login_valid_credentials">
+    <small class="form-hint">Short identifier for CI linking. A Test UID is generated automatically from this name.</small>
+</div>
+
+{% if data.get('test_uid') %}
+<div class="form-group">
+    <label>Test UID <small>(auto-generated)</small></label>
+    <code style="display:block;padding:6px 10px;background:var(--surface-container,#f5f5f5);border-radius:4px;font-size:13px;user-select:all;">{{ data.get('test_uid', '') }}</code>
+    <small class="form-hint">Include this UID in your test method names so CI results map automatically.</small>
+</div>
+{% endif %}

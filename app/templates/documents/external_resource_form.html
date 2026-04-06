@@ -58,6 +58,8 @@
         <textarea id="notes" name="notes" rows="2" placeholder="Rate limits, licensing, or other constraints">{{ data.get('notes', '') }}</textarea>
     </div>
 
+    {% include "documents/_test_id_fields.html" %}
+
     <div class="form-actions">
         <button type="submit" class="btn btn-primary">{{ "Update" if document else "Create" }}</button>
         <a href="{{ url_for('documents.index', project_id=project.id) }}" class="btn">Cancel</a>
