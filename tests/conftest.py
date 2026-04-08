@@ -3,6 +3,8 @@
 Uses an in-memory mock Supabase client so tests run without a live database.
 """
 import copy
+import shutil
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -154,6 +156,7 @@ def app(_mock_supabase):
         TESTING = True
         SUPABASE_URL = "http://mock"
         SUPABASE_SERVICE_KEY = "mock-key"
+        SCREEN_MATERIALS_DIR = tempfile.mkdtemp(prefix="screen-materials-tests-")
 
     config["testing"] = _TestConfig
 
@@ -167,6 +170,9 @@ def app(_mock_supabase):
 def _clean_store(_mock_supabase, app):
     """Reset all in-memory data between tests (also ensures app is created)."""
     _mock_supabase.reset()
+    materials_dir = app.config.get("SCREEN_MATERIALS_DIR")
+    if materials_dir:
+        shutil.rmtree(materials_dir, ignore_errors=True)
 
 
 @pytest.fixture

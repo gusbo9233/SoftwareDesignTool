@@ -1,0 +1,433 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+{% set structure_title = data.get('title', 'Folder Structure') %}
+{% set root_name = data.get('root_name', project.name) %}
+{% set notes = data.get('notes', '') %}
+
+{% block title %}{{ "Edit" if document else "New" }} Folder Structure - {{ project.name }}{% endblock %}
+
+{% block project_content %}
+<style>
+    .folder-tree-line {
+        position: absolute;
+        left: 11px;
+        top: -10px;
+        bottom: -10px;
+        width: 1px;
+        background: rgba(148, 163, 184, 0.22);
+    }
+
+    .folder-tree-actions {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease;
+    }
+
+    .folder-tree-row:hover .folder-tree-actions,
+    .folder-tree-row:focus-within .folder-tree-actions {
+        opacity: 1;
+        pointer-events: auto;
+    }
+</style>
+
+<form method="POST" id="folder-structure-form" class="space-y-6">
+    <input type="hidden" id="title" name="title" value="{{ structure_title }}">
+    <input type="hidden" id="root_name" name="root_name" value="{{ root_name }}">
+    <input type="hidden" id="notes" name="notes" value="{{ notes }}">
+
+    <div class="flex items-start justify-between gap-6">
+        <div>
+            <span class="font-label text-[10px] uppercase tracking-widest text-primary mb-1.5 block">Folder Structure</span>
+            <h1 class="text-3xl font-extrabold tracking-tighter text-on-surface">{{ structure_title }}</h1>
+            <p class="text-sm text-on-surface-variant mt-2 max-w-2xl">
+                {{ root_name or project.name }}
+                {% if project_template.key != "generic" %}
+                · {{ project_template.label }}
+                {% endif %}
+            </p>
+        </div>
+        <div class="flex items-center gap-3 shrink-0">
+            <a href="{{ url_for('documents.index', project_id=project.id) }}"
+               class="inline-flex items-center gap-2 bg-surface-container text-on-surface px-4 py-2 rounded-sm font-semibold text-xs font-label hover:bg-surface-container-high transition-colors">
+                Cancel
+            </a>
+            <button type="submit"
+                    class="inline-flex items-center gap-2 bg-gradient-to-br from-primary to-primary-dim text-on-primary px-4 py-2 rounded-sm font-semibold text-xs font-label hover:brightness-110 transition-all">
+                <span class="material-symbols-outlined text-sm">{% if document %}save{% else %}add{% endif %}</span>
+                {% if document %}Save{% else %}Create{% endif %}
+            </button>
+        </div>
+    </div>
+
+    <section class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        <div class="px-5 py-4 border-b border-slate-200 bg-slate-50/80">
+            <div class="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                    <div class="text-sm font-semibold text-slate-900" id="preview-root-name">{{ root_name or project.name }}</div>
+                    <div class="text-xs text-slate-500 mt-1" id="preview-title">{{ structure_title }}</div>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button type="button"
+                            onclick="expandAllFolders()"
+                            class="inline-flex items-center gap-1.5 bg-white text-slate-600 border border-slate-200 px-2.5 py-1.5 rounded-md text-[10px] font-label uppercase tracking-widest hover:bg-slate-100 transition-colors">
+                        <span class="material-symbols-outlined text-sm">unfold_more</span>
+                        Expand
+                    </button>
+                    <button type="button"
+                            onclick="collapseAllFolders()"
+                            class="inline-flex items-center gap-1.5 bg-white text-slate-600 border border-slate-200 px-2.5 py-1.5 rounded-md text-[10px] font-label uppercase tracking-widest hover:bg-slate-100 transition-colors">
+                        <span class="material-symbols-outlined text-sm">unfold_less</span>
+                        Collapse
+                    </button>
+                    <button type="button"
+                            onclick="addFolderStructureRow('', 'folder', '')"
+                            class="inline-flex items-center gap-1.5 bg-slate-900 text-white px-2.5 py-1.5 rounded-md text-[10px] font-label uppercase tracking-widest hover:bg-slate-800 transition-colors">
+                        <span class="material-symbols-outlined text-sm">create_new_folder</span>
+                        Add Folder
+                    </button>
+                    <button type="button"
+                            onclick="addFolderStructureRow('', 'file', '')"
+                            class="inline-flex items-center gap-1.5 bg-slate-900 text-white px-2.5 py-1.5 rounded-md text-[10px] font-label uppercase tracking-widest hover:bg-slate-800 transition-colors">
+                        <span class="material-symbols-outlined text-sm">note_add</span>
+                        Add File
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {% if fixed_structure_items %}
+            {% for item in fixed_structure_items %}
+            <input type="hidden" name="item_path" value="{{ item.get('path', '') }}">
+            <input type="hidden" name="item_kind" value="{{ item.get('kind', 'folder') }}">
+            <input type="hidden" name="item_purpose" value="{{ item.get('purpose', '') }}">
+            <input type="hidden" name="item_is_fixed" value="true">
+            {% endfor %}
+        {% endif %}
+
+        <div id="folder-structure-table" class="hidden">
+            {% for item in custom_structure_items %}
+            <div class="structure-row">
+                <input type="text" name="item_path" value="{{ item.get('path', '') }}" class="structure-input">
+                <select name="item_kind" class="structure-input">
+                    <option value="folder" {{ 'selected' if item.get('kind', 'folder') == 'folder' }}>Folder</option>
+                    <option value="file" {{ 'selected' if item.get('kind') == 'file' }}>File</option>
+                    <option value="solution" {{ 'selected' if item.get('kind') == 'solution' }}>Solution</option>
+                </select>
+                <input type="text" name="item_purpose" value="{{ item.get('purpose', '') }}" class="structure-input">
+                <input type="hidden" name="item_is_fixed" value="false">
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="px-4 py-3 border-b border-slate-100 bg-white">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-slate-400 text-[18px]">expand_more</span>
+                <span class="material-symbols-outlined text-primary">folder</span>
+                <span class="text-sm font-semibold text-slate-900" id="preview-tree-root">{{ root_name or project.name }}</span>
+            </div>
+        </div>
+
+        <div id="structure-preview" class="bg-white py-2 min-h-[560px]"></div>
+    </section>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function renderStructurePreview() {
+    const preview = document.getElementById('structure-preview');
+    const previewRoot = document.getElementById('preview-tree-root');
+    if (previewRoot) {
+        previewRoot.textContent = document.getElementById('root_name').value || '{{ project.name }}';
+    }
+    preview.innerHTML = buildTreeMarkup(getAllItems());
+    bindTreeButtons();
+}
+
+function getAllItems() {
+    const items = [];
+
+    document.querySelectorAll('input[name="item_is_fixed"][value="true"]').forEach((input) => {
+        const path = input.parentElement.querySelector('input[name="item_path"]')?.value || input.previousElementSibling?.value || '';
+        const fixedInputs = document.querySelectorAll('input[name="item_is_fixed"][value="true"]');
+    });
+
+    const fixedFlags = Array.from(document.querySelectorAll('input[name="item_is_fixed"][value="true"]'));
+    fixedFlags.forEach((flag) => {
+        const container = flag.parentElement;
+        const inputs = container ? container.querySelectorAll('input') : [];
+        if (inputs.length >= 4) {
+            items.push({
+                path: inputs[0].value,
+                kind: inputs[1].value,
+                purpose: inputs[2].value,
+                fixed: true,
+            });
+        }
+    });
+
+    Array.from(document.querySelectorAll('.structure-row')).forEach((row) => {
+        const path = row.querySelector('input[name="item_path"]').value.trim();
+        const kind = row.querySelector('select[name="item_kind"]').value;
+        const purpose = row.querySelector('input[name="item_purpose"]').value.trim();
+        if (path) {
+            items.push({ path, kind, purpose, fixed: false });
+        }
+    });
+
+    return items;
+}
+
+function buildTreeMarkup(items) {
+    const tree = buildTree(items);
+    return tree.children.map((node) => renderTreeNode(node, 0)).join('');
+}
+
+function buildTree(items) {
+    const root = { children: [] };
+    const nodeMap = new Map();
+
+    function ensureFolder(path) {
+        if (nodeMap.has(path)) return nodeMap.get(path);
+        const trimmed = path.replace(/\/+$/, '');
+        const segments = trimmed.split('/').filter(Boolean);
+        const name = segments[segments.length - 1] || trimmed;
+        const parentPath = segments.length > 1 ? segments.slice(0, -1).join('/') + '/' : '';
+        const node = { path: trimmed + '/', name: name + '/', kind: 'folder', fixed: false, purpose: '', children: [], auto: true };
+        nodeMap.set(node.path, node);
+        const parent = parentPath ? ensureFolder(parentPath) : root;
+        if (!parent.children.find((child) => child.path === node.path)) {
+            parent.children.push(node);
+        }
+        return node;
+    }
+
+    items.forEach((item) => {
+        const normalized = item.kind === 'folder'
+            ? item.path.replace(/^\/+/, '').replace(/\/?$/, '/')
+            : item.path.replace(/^\/+/, '');
+        const segments = normalized.split('/').filter(Boolean);
+
+        if (segments.length > 1) {
+            const folderSegments = segments.slice(0, -1);
+            let current = '';
+            folderSegments.forEach((segment) => {
+                current += `${segment}/`;
+                ensureFolder(current);
+            });
+        }
+
+        const name = segments[segments.length - 1] || normalized;
+        const parentPath = segments.length > 1 ? segments.slice(0, -1).join('/') + '/' : '';
+        const parent = parentPath ? ensureFolder(parentPath) : root;
+        const key = item.kind === 'folder' ? normalized : normalized;
+        let node = nodeMap.get(key);
+        if (!node) {
+            node = {
+                path: normalized,
+                name: item.kind === 'folder' ? `${name}/` : name,
+                kind: item.kind,
+                fixed: item.fixed,
+                purpose: item.purpose || '',
+                children: [],
+                auto: false,
+            };
+            nodeMap.set(key, node);
+            parent.children.push(node);
+        } else {
+            node.kind = item.kind;
+            node.fixed = item.fixed;
+            node.auto = false;
+            node.purpose = item.purpose || node.purpose || '';
+            node.name = item.kind === 'folder' ? `${name}/` : name;
+        }
+    });
+
+    sortTree(root);
+    return root;
+}
+
+function sortTree(node) {
+    node.children.sort((a, b) => {
+        if (a.kind === 'folder' && b.kind !== 'folder') return -1;
+        if (a.kind !== 'folder' && b.kind === 'folder') return 1;
+        return a.name.localeCompare(b.name);
+    });
+    node.children.forEach(sortTree);
+}
+
+function renderTreeNode(node, depth) {
+    const hasChildren = node.kind === 'folder' && node.children.length > 0;
+    const icon = node.kind === 'file' ? 'description' : (node.kind === 'solution' ? 'workspaces' : 'folder');
+    const iconClass = node.kind === 'file' ? 'text-slate-400' : 'text-primary';
+    const rowTone = node.fixed ? 'bg-slate-50/90' : 'bg-white';
+    const toggle = node.kind === 'folder'
+        ? `<button type="button" class="tree-toggle inline-flex items-center justify-center w-5 h-5 rounded-sm hover:bg-slate-200/70 text-slate-500" data-path="${escapeHtml(node.path)}">
+                <span class="material-symbols-outlined text-[16px]">${hasChildren ? 'expand_more' : 'chevron_right'}</span>
+           </button>`
+        : `<span class="inline-block w-5 h-5"></span>`;
+    const addButtons = node.kind === 'folder'
+        ? `<button type="button" class="tree-add-folder inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-label uppercase tracking-widest bg-slate-100 text-slate-700 hover:bg-slate-200" data-folder="${escapeHtml(node.path)}">
+                <span class="material-symbols-outlined text-[14px]">create_new_folder</span>
+                Add Folder
+           </button>
+           <button type="button" class="tree-add-file inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-label uppercase tracking-widest bg-slate-100 text-slate-700 hover:bg-slate-200" data-folder="${escapeHtml(node.path)}">
+                <span class="material-symbols-outlined text-[14px]">note_add</span>
+                Add File
+           </button>`
+        : '';
+    const removeButton = !node.fixed
+        ? `<button type="button" class="tree-remove inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-label uppercase tracking-widest bg-rose-50 text-rose-600 hover:bg-rose-100" data-path="${escapeHtml(node.path)}">
+                <span class="material-symbols-outlined text-[14px]">delete</span>
+                Delete
+           </button>`
+        : '';
+    const childrenMarkup = hasChildren
+        ? `<div class="tree-children" data-parent="${escapeHtml(node.path)}">${node.children.map((child) => renderTreeNode(child, depth + 1)).join('')}</div>`
+        : '';
+
+    const guideLine = depth > 0 ? '<div class="folder-tree-line"></div>' : '';
+    return `<div class="tree-node" data-node="${escapeHtml(node.path)}">
+        <div class="folder-tree-row group relative flex items-center px-4 py-2.5 hover:bg-slate-50 transition-colors ${rowTone}">
+            <div class="flex items-center gap-3 relative" style="margin-left:${depth * 24}px; width: calc(100% - ${depth * 24}px);">
+                ${guideLine}
+                ${toggle}
+                <span class="material-symbols-outlined text-[18px] ${iconClass}">${icon}</span>
+                <span class="text-sm ${node.fixed ? 'font-medium text-slate-900' : 'text-slate-700'}">${escapeHtml(node.name)}</span>
+                <div class="folder-tree-actions ml-auto flex items-center gap-2">
+                    ${addButtons}
+                    ${removeButton}
+                </div>
+            </div>
+        </div>
+        ${childrenMarkup}
+    </div>`;
+}
+
+function bindTreeButtons() {
+    document.querySelectorAll('.tree-toggle').forEach((button) => {
+        button.addEventListener('click', () => toggleFolder(button.dataset.path));
+    });
+    document.querySelectorAll('.tree-add-folder').forEach((button) => {
+        button.addEventListener('click', () => addEntryToFolder(button.dataset.folder, 'folder'));
+    });
+    document.querySelectorAll('.tree-add-file').forEach((button) => {
+        button.addEventListener('click', () => addEntryToFolder(button.dataset.folder, 'file'));
+    });
+    document.querySelectorAll('.tree-remove').forEach((button) => {
+        button.addEventListener('click', () => removeEntryByPath(button.dataset.path));
+    });
+}
+
+function toggleFolder(path) {
+    const children = document.querySelector(`.tree-children[data-parent="${cssEscape(path)}"]`);
+    const icon = document.querySelector(`.tree-toggle[data-path="${cssEscape(path)}"] .material-symbols-outlined`);
+    if (!children || !icon) return;
+    const isHidden = children.classList.toggle('hidden');
+    icon.textContent = isHidden ? 'chevron_right' : 'expand_more';
+}
+
+function expandAllFolders() {
+    document.querySelectorAll('.tree-children').forEach((node) => node.classList.remove('hidden'));
+    document.querySelectorAll('.tree-toggle .material-symbols-outlined').forEach((icon) => {
+        icon.textContent = 'expand_more';
+    });
+}
+
+function collapseAllFolders() {
+    document.querySelectorAll('.tree-children').forEach((node) => node.classList.add('hidden'));
+    document.querySelectorAll('.tree-toggle .material-symbols-outlined').forEach((icon) => {
+        icon.textContent = 'chevron_right';
+    });
+}
+
+function addFolderStructureRow(path = '', kind = 'folder', purpose = '') {
+    const container = document.getElementById('folder-structure-table');
+    const row = document.createElement('div');
+    row.className = 'structure-row';
+    row.innerHTML = `
+        <input type="text" name="item_path" value="${escapeAttribute(path)}" class="structure-input">
+        <select name="item_kind" class="structure-input">
+            <option value="folder" ${kind === 'folder' ? 'selected' : ''}>Folder</option>
+            <option value="file" ${kind === 'file' ? 'selected' : ''}>File</option>
+            <option value="solution" ${kind === 'solution' ? 'selected' : ''}>Solution</option>
+        </select>
+        <input type="text" name="item_purpose" value="${escapeAttribute(purpose)}" class="structure-input">
+        <input type="hidden" name="item_is_fixed" value="false">
+    `;
+    container.appendChild(row);
+    renderStructurePreview();
+}
+
+function addEntryToFolder(folderPath, kind) {
+    const path = generateChildPath(folderPath, kind || 'folder');
+    addFolderStructureRow(path, kind || 'folder', '');
+}
+
+function removeEntryByPath(path) {
+    const rows = Array.from(document.querySelectorAll('.structure-row'));
+    const normalizedFolderPrefix = path.endsWith('/') ? path : `${path}/`;
+    rows.forEach((candidate) => {
+        const candidatePath = candidate.querySelector('input[name="item_path"]').value.trim();
+        if (candidatePath === path || candidatePath.startsWith(normalizedFolderPrefix)) {
+            candidate.remove();
+        }
+    });
+    renderStructurePreview();
+}
+
+function generateChildPath(folderPath, kind) {
+    const normalizedParent = folderPath && !folderPath.endsWith('/') ? `${folderPath}/` : (folderPath || '');
+    const items = getAllItems();
+    const existingPaths = new Set(items.map((item) => normalizeItemPath(item.path, item.kind)));
+    const baseName = kind === 'folder' ? 'NewFolder' : 'NewFile';
+    const suffix = kind === 'folder' ? '/' : '';
+    let counter = 1;
+
+    while (true) {
+        const serial = counter === 1 ? '' : String(counter);
+        const candidate = `${normalizedParent}${baseName}${serial}${suffix}`;
+        if (!existingPaths.has(candidate)) {
+            return candidate;
+        }
+        counter += 1;
+    }
+}
+
+function normalizeItemPath(path, kind) {
+    const value = (path || '').replace(/^\/+/, '');
+    if (kind === 'folder') {
+        return value.replace(/\/?$/, '/');
+    }
+    return value.replace(/\/+$/, '');
+}
+
+function cssEscape(value) {
+    if (window.CSS && window.CSS.escape) return window.CSS.escape(value);
+    return value.replace(/["\\]/g, '\\$&');
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function escapeAttribute(value) {
+    return escapeHtml(value);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    const parent = params.get('parent');
+    const kind = params.get('kind');
+    if (parent && kind) {
+        addFolderStructureRow(parent, kind, '');
+    }
+    renderStructurePreview();
+});
+</script>
+{% endblock %}

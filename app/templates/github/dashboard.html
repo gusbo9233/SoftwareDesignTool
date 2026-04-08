@@ -20,7 +20,8 @@
         <span class="font-label text-[10px] text-outline mt-1 block">
             Branch: {{ connection.default_branch }}
             {% if connection.last_synced_at %}
-            &nbsp;&middot;&nbsp; Last synced: {{ connection.last_synced_at.strftime('%Y-%m-%d %H:%M') if connection.last_synced_at is not none else 'Never' }}
+            &nbsp;&middot;&nbsp; Last synced:
+            {{ connection.last_synced_at[:16].replace('T', ' ') if connection.last_synced_at is string else connection.last_synced_at.strftime('%Y-%m-%d %H:%M') }}
             {% endif %}
         </span>
     </div>

@@ -15,53 +15,47 @@
 <h1>{{ "Edit" if document else "New" }} User Story</h1>
 
 <div class="story-preview">
-    <p>As a <strong>[type of user]</strong>, I want to <strong>[perform an action]</strong> so that I can <strong>[achieve a goal/benefit]</strong>.</p>
+    <p>Capture one or more stories in the format: <strong>As a [type of user]</strong>, I want to <strong>[perform an action]</strong> so that I can <strong>[achieve a goal/benefit]</strong>.</p>
 </div>
 
+{% set stories = data.get('stories', []) if data else [] %}
+{% if not stories %}
+    {% set stories = [{'user_type': '', 'action': '', 'benefit': '', 'acceptance_criteria': []}] %}
+{% endif %}
+
 <form method="POST" class="form">
-    <div class="form-group">
-        <label for="user_type">User Type</label>
-        <input type="text" id="user_type" name="user_type" value="{{ data.get('user_type', '') }}" placeholder="e.g., developer, admin, team lead" required>
-    </div>
-    <div class="form-group">
-        <label for="action">Action (I want to...)</label>
-        <textarea id="action" name="action" rows="2" placeholder="e.g., assign tasks to team members" required>{{ data.get('action', '') }}</textarea>
-    </div>
-    <div class="form-group">
-        <label for="benefit">Benefit (So that I can...)</label>
-        <textarea id="benefit" name="benefit" rows="2" placeholder="e.g., track workload distribution" required>{{ data.get('benefit', '') }}</textarea>
-    </div>
-    <div class="form-row">
-        <div class="form-group">
-            <label for="priority">Priority</label>
-            <select id="priority" name="priority">
-                <option value="high" {{ 'selected' if data.get('priority') == 'high' }}>High</option>
-                <option value="medium" {{ 'selected' if data.get('priority', 'medium') == 'medium' }}>Medium</option>
-                <option value="low" {{ 'selected' if data.get('priority') == 'low' }}>Low</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="status">Status</label>
-            <select id="status" name="status">
-                <option value="draft" {{ 'selected' if data.get('status', 'draft') == 'draft' }}>Draft</option>
-                <option value="approved" {{ 'selected' if data.get('status') == 'approved' }}>Approved</option>
-                <option value="implemented" {{ 'selected' if data.get('status') == 'implemented' }}>Implemented</option>
-            </select>
-        </div>
+    <div id="story-list">
+        {% for story in stories %}
+        <section class="story-card repeatable-group">
+            <div class="flex items-center justify-between">
+                <h3>Story {{ loop.index }}</h3>
+                <button type="button" class="btn btn-small btn-danger" onclick="removeStory(this)">Remove Story</button>
+            </div>
+
+            <div class="form-group">
+                <label>User Type</label>
+                <input type="text" name="story_user_type" value="{{ story.get('user_type', '') }}" placeholder="e.g., developer, admin, team lead" required>
+            </div>
+            <div class="form-group">
+                <label>Action (I want to...)</label>
+                <textarea name="story_action" rows="2" placeholder="e.g., assign tasks to team members" required>{{ story.get('action', '') }}</textarea>
+            </div>
+            <div class="form-group">
+                <label>Benefit (So that I can...)</label>
+                <textarea name="story_benefit" rows="2" placeholder="e.g., track workload distribution" required>{{ story.get('benefit', '') }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Acceptance Criteria</label>
+                <textarea name="story_acceptance_criteria" rows="4" placeholder="One criterion per line">{% for criterion in story.get('acceptance_criteria', []) %}{{ criterion }}{% if not loop.last %}
+{% endif %}{% endfor %}</textarea>
+                <small class="text-muted">Enter one criterion per line.</small>
+            </div>
+        </section>
+        {% endfor %}
     </div>
 
-    <div class="form-group">
-        <label>Acceptance Criteria</label>
-        <div id="criteria-list">
-            {% for criterion in data.get('acceptance_criteria', ['']) %}
-            <div class="repeatable-row">
-                <input type="text" name="acceptance_criteria" value="{{ criterion }}" placeholder="Verifiable condition">
-                <button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">Remove</button>
-            </div>
-            {% endfor %}
-        </div>
-        <button type="button" class="btn btn-small" onclick="addCriterion()">+ Add Criterion</button>
-    </div>
+    <button type="button" class="btn btn-small" onclick="addStory()">+ Add Story</button>
 
     {% include "documents/_test_id_fields.html" %}
 
@@ -71,14 +65,62 @@
     </div>
 </form>
 
+<template id="story-template">
+    <section class="story-card repeatable-group">
+        <div class="flex items-center justify-between">
+            <h3></h3>
+            <button type="button" class="btn btn-small btn-danger" onclick="removeStory(this)">Remove Story</button>
+        </div>
+
+        <div class="form-group">
+            <label>User Type</label>
+            <input type="text" name="story_user_type" placeholder="e.g., developer, admin, team lead" required>
+        </div>
+        <div class="form-group">
+            <label>Action (I want to...)</label>
+            <textarea name="story_action" rows="2" placeholder="e.g., assign tasks to team members" required></textarea>
+        </div>
+        <div class="form-group">
+            <label>Benefit (So that I can...)</label>
+            <textarea name="story_benefit" rows="2" placeholder="e.g., track workload distribution" required></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Acceptance Criteria</label>
+            <textarea name="story_acceptance_criteria" rows="4" placeholder="One criterion per line"></textarea>
+            <small class="text-muted">Enter one criterion per line.</small>
+        </div>
+    </section>
+</template>
+
 <script>
-function addCriterion() {
-    const list = document.getElementById('criteria-list');
-    const row = document.createElement('div');
-    row.className = 'repeatable-row';
-    row.innerHTML = '<input type="text" name="acceptance_criteria" placeholder="Verifiable condition">' +
-        '<button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">Remove</button>';
-    list.appendChild(row);
+function renumberStories() {
+    const stories = document.querySelectorAll('#story-list .story-card');
+    stories.forEach((story, index) => {
+        const heading = story.querySelector('h3');
+        if (heading) {
+            heading.textContent = `Story ${index + 1}`;
+        }
+    });
 }
+
+function addStory() {
+    const template = document.getElementById('story-template');
+    const list = document.getElementById('story-list');
+    const story = template.content.firstElementChild.cloneNode(true);
+    list.appendChild(story);
+    renumberStories();
+}
+
+function removeStory(button) {
+    const list = document.getElementById('story-list');
+    if (list.children.length === 1) {
+        return;
+    }
+    button.closest('.story-card').remove();
+    renumberStories();
+}
+
+renumberStories();
 </script>
 {% endblock %}

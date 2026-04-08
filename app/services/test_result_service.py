@@ -1,5 +1,6 @@
 """Service for fetching CI test results from GitHub and parsing JUnit XML."""
 import hashlib
+import re
 import xml.etree.ElementTree as ET
 from types import SimpleNamespace
 from datetime import datetime
@@ -123,6 +124,63 @@ def parse_junit_xml(xml_bytes):
         "duration_seconds": round(total_time, 3),
     }
     return summary, test_cases
+
+
+def parse_pytest_output(log_text):
+    """Parse pytest -v style console output into test case rows."""
+    if not log_text:
+        return {
+            "total_tests": 0,
+            "passed": 0,
+            "failed": 0,
+            "skipped": 0,
+            "duration_seconds": None,
+        }, []
+
+    pattern = re.compile(
+        r"^(?:\d{4}-\d{2}-\d{2}T[^\s]+\s+)?(?P<nodeid>\S+::(?P<test_name>[^\s]+))\s+"
+        r"(?P<status>PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)\b",
+        re.MULTILINE,
+    )
+    cases = []
+    passed = failed = skipped = 0
+
+    for match in pattern.finditer(log_text):
+        raw_status = match.group("status")
+        status = {
+            "PASSED": "passed",
+            "FAILED": "failed",
+            "ERROR": "error",
+            "SKIPPED": "skipped",
+            "XFAIL": "skipped",
+            "XPASS": "passed",
+        }[raw_status]
+        if status == "passed":
+            passed += 1
+        elif status in {"failed", "error"}:
+            failed += 1
+        elif status == "skipped":
+            skipped += 1
+
+        nodeid = match.group("nodeid")
+        class_name = nodeid.rsplit("::", 1)[0]
+        cases.append({
+            "test_name": match.group("test_name"),
+            "class_name": class_name,
+            "status": status,
+            "duration_seconds": None,
+            "failure_message": None,
+            "failure_output": None,
+        })
+
+    summary = {
+        "total_tests": len(cases),
+        "passed": passed,
+        "failed": failed,
+        "skipped": skipped,
+        "duration_seconds": None,
+    }
+    return summary, cases
 
 
 class TestResultService:
@@ -255,6 +313,27 @@ class TestResultService:
         return [_result(d) for d in res.data]
 
     @staticmethod
+    def get_latest_results_for_test_names(project_id, test_names, limit_runs=20):
+        wanted = {name.strip().lower(): name for name in test_names if name and name.strip()}
+        if not wanted:
+            return {}
+
+        latest = {}
+        runs = TestResultService.get_runs_for_project(project_id, limit=limit_runs)
+        for run in runs:
+            results = TestResultService.get_results_for_run(run.id)
+            for result in results:
+                normalized_name = (result.test_name or "").strip().lower()
+                if normalized_name in wanted and normalized_name not in latest:
+                    latest[normalized_name] = {
+                        "result": result,
+                        "run": run,
+                    }
+            if len(latest) == len(wanted):
+                break
+        return latest
+
+    @staticmethod
     def sync_workflow_runs(project_id, git_connection):
         """Fetch recent workflow runs from GitHub, download artifacts, parse results.
 
@@ -275,25 +354,30 @@ class TestResultService:
         for wr in workflow_runs:
             github_run_id = wr["id"]
             existing = TestResultService.get_run_by_github_id(github_run_id)
-            if existing:
+            should_backfill_existing = bool(existing and getattr(existing, "total_tests", None) is None)
+            if existing and not should_backfill_existing:
                 continue
 
             status = wr.get("status", "queued")
             conclusion = wr.get("conclusion")
 
-            run_record = TestResultService.create_run(
-                project_id=project_id,
-                github_run_id=github_run_id,
-                branch=wr.get("head_branch", git_connection.default_branch),
-                commit_sha=wr.get("head_sha", ""),
-                status=status,
-                conclusion=conclusion,
-                run_url=wr.get("html_url", ""),
-            )
+            if existing:
+                run_record = existing
+            else:
+                run_record = TestResultService.create_run(
+                    project_id=project_id,
+                    github_run_id=github_run_id,
+                    branch=wr.get("head_branch", git_connection.default_branch),
+                    commit_sha=wr.get("head_sha", ""),
+                    status=status,
+                    conclusion=conclusion,
+                    run_url=wr.get("html_url", ""),
+                )
 
             # Try to download and parse test artifacts
             if status == "completed":
                 try:
+                    parsed = False
                     artifacts_data = gh.list_run_artifacts(github_run_id)
                     for art in artifacts_data.get("artifacts", []):
                         if "test" in art["name"].lower() or "junit" in art["name"].lower():
@@ -301,6 +385,7 @@ class TestResultService:
                             if xml_bytes:
                                 summary, cases = parse_junit_xml(xml_bytes)
                                 # Update run with parsed results
+                                _app.supabase.table("test_results").delete().eq("test_run_id", run_record.id).execute()
                                 _app.supabase.table("test_runs").update({
                                     "total_tests": summary["total_tests"],
                                     "passed": summary["passed"],
@@ -315,10 +400,52 @@ class TestResultService:
                                 run_record.passed = summary["passed"]
                                 run_record.failed = summary["failed"]
                                 run_record.skipped = summary["skipped"]
+                                parsed = True
                                 break
+
+                    if not parsed:
+                        jobs_data = gh.list_run_jobs(github_run_id)
+                        all_cases = []
+                        for job in jobs_data.get("jobs", []):
+                            log_text = gh.download_job_logs(job["id"])
+                            _, cases = parse_pytest_output(log_text)
+                            all_cases.extend(cases)
+
+                        deduped_cases = []
+                        seen_names = set()
+                        for case in all_cases:
+                            normalized_name = (case.get("test_name") or "").strip().lower()
+                            if normalized_name and normalized_name not in seen_names:
+                                seen_names.add(normalized_name)
+                                deduped_cases.append(case)
+
+                        if deduped_cases:
+                            _app.supabase.table("test_results").delete().eq("test_run_id", run_record.id).execute()
+                            summary = {
+                                "total_tests": len(deduped_cases),
+                                "passed": sum(1 for c in deduped_cases if c["status"] == "passed"),
+                                "failed": sum(1 for c in deduped_cases if c["status"] in {"failed", "error"}),
+                                "skipped": sum(1 for c in deduped_cases if c["status"] == "skipped"),
+                                "duration_seconds": None,
+                            }
+                            _app.supabase.table("test_runs").update({
+                                "total_tests": summary["total_tests"],
+                                "passed": summary["passed"],
+                                "failed": summary["failed"],
+                                "skipped": summary["skipped"],
+                                "duration_seconds": summary["duration_seconds"],
+                            }).eq("id", run_record.id).execute()
+
+                            TestResultService._resolve_linked_documents(project_id, deduped_cases)
+                            TestResultService.create_results(run_record.id, deduped_cases)
+                            run_record.total_tests = summary["total_tests"]
+                            run_record.passed = summary["passed"]
+                            run_record.failed = summary["failed"]
+                            run_record.skipped = summary["skipped"]
                 except Exception:
                     pass  # Artifact download may fail; run record still saved
 
-            synced.append(run_record)
+            if not existing or should_backfill_existing:
+                synced.append(run_record)
 
         return synced

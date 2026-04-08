@@ -11,6 +11,11 @@ def _parse_dt(s):
     try:
         return datetime.fromisoformat(s.replace("Z", "+00:00"))
     except ValueError:
+        pass
+    try:
+        from dateutil.parser import parse as dateutil_parse
+        return dateutil_parse(s)
+    except Exception:
         return s
 
 

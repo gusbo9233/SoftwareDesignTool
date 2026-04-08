@@ -5,35 +5,34 @@
 
 {% block project_content %}
 <div class="page-header">
-    <h1>View Design</h1>
+    <div>
+        <h1>View Folders</h1>
+        <p style="color: var(--on-surface-variant); font-size: 0.9rem; margin-top: 0.5rem; max-width: 48rem;">
+            Organize view materials in a folder tree. Each folder can represent a screen, subflow, or subsection of a larger experience.
+        </p>
+    </div>
     <div class="actions">
         <a href="{{ url_for('screens.generate', project_id=project.id) }}" class="btn btn-primary">
             <span class="material-symbols-outlined text-sm">auto_awesome</span>
-            Generate Screen
+            Generate Folder
         </a>
         <a href="{{ url_for('screens.create', project_id=project.id) }}" class="btn">
-            <span class="material-symbols-outlined text-sm">add</span>
-            Add Manually
+            <span class="material-symbols-outlined text-sm">create_new_folder</span>
+            New Folder
         </a>
     </div>
 </div>
 
 {% if design_system %}
-<div class="artifact-card" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1.5rem;">
-    <div style="display: flex; align-items: center; gap: 0.75rem;">
-        <div style="width: 2rem; height: 2rem; border-radius: var(--radius-sm); background: {{ (design_system.data or {}).get('custom_color', '#005db5') }};"></div>
-        <div>
-            <div style="font-weight: 600; font-size: 0.875rem;">{{ design_system.name }}</div>
-            <div style="font-size: 0.75rem; color: var(--on-surface-variant);">
-                {{ (design_system.data or {}).get('headline_font', '').replace('_', ' ').title() }} /
-                {{ (design_system.data or {}).get('body_font', '').replace('_', ' ').title() }}
-                &middot; {{ (design_system.data or {}).get('color_mode', 'LIGHT') }}
-            </div>
+<div class="artifact-card" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem;">
+    <div style="width: 2.25rem; height: 2.25rem; border-radius: var(--radius-sm); background: {{ (design_system.data or {}).get('custom_color', '#005db5') }};"></div>
+    <div>
+        <div style="font-weight: 600;">{{ design_system.name }}</div>
+        <div style="font-size: 0.8rem; color: var(--on-surface-variant);">
+            Shared design system for all view folders
         </div>
     </div>
-    <a href="{{ url_for('screens.design_system', project_id=project.id) }}" class="btn btn-small" style="margin-left: auto;">
-        View Design System
-    </a>
+    <a href="{{ url_for('screens.design_system', project_id=project.id) }}" class="btn btn-small" style="margin-left: auto;">Open Design System</a>
 </div>
 {% else %}
 <div class="artifact-card" style="margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between;">
@@ -45,59 +44,62 @@
 </div>
 {% endif %}
 
-{% if screens %}
-<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem;">
-    {% for screen in screens %}
-    <div class="project-card">
-        <a href="{{ url_for('screens.detail', project_id=project.id, id=screen.id) }}" style="text-decoration: none; color: inherit;">
-            {% set sdata = screen.data or {} %}
-            {% if sdata.get('image_url') %}
-            <div style="width: 100%; height: 160px; background: var(--surface-container); border-radius: var(--radius-sm); margin-bottom: 0.75rem; overflow: hidden;">
-                <img src="{{ sdata['image_url'] }}" alt="{{ screen.name }}" style="width: 100%; height: 100%; object-fit: cover;">
+{% if screen_tree %}
+<div class="artifact-card" style="padding: 0.5rem;">
+    <div style="font-weight: 700; padding: 0.6rem 0.75rem 0.85rem;">Folder Tree</div>
+    <div style="display: grid; gap: 0.55rem;">
+        {% for node in screen_tree %}
+        {% set screen = node.screen %}
+        {% set sdata = screen.data or {} %}
+        <div style="margin-left: {{ node.depth * 1.5 }}rem; border: 1px solid rgba(171,179,183,0.22); border-radius: var(--radius-md); overflow: hidden; background: {% if node.depth == 0 %}var(--surface-bright){% else %}rgba(255,255,255,0.7){% endif %};">
+            <div style="padding: 0.8rem 0.95rem; display: flex; align-items: center; gap: 0.75rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; min-width: 0; flex: 1;">
+                    <span class="material-symbols-outlined" style="color: var(--primary);">{% if node.has_children %}folder_open{% else %}folder{% endif %}</span>
+                    <div style="min-width: 0; flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; margin-bottom: 0.2rem;">
+                            <a href="{{ url_for('screens.detail', project_id=project.id, id=screen.id) }}" style="font-weight: 700; color: inherit; text-decoration: none;">{{ sdata.get('folder_name', screen.name) }}</a>
+                            <span class="doc-type-badge">{{ device_labels.get(screen.device_type.upper(), screen.device_type) }}</span>
+                            <span class="badge">{{ screen_material_count(screen) }} materials</span>
+                            {% if sdata.get('prompt') %}
+                            <span class="badge">Stitch</span>
+                            {% endif %}
+                            {% if sdata.get('generation_status') in ('queued', 'running', 'recovering') %}
+                            <span class="badge" style="background: var(--secondary-container); color: var(--on-secondary-container);">Generating</span>
+                            {% elif sdata.get('generation_status') == 'needs_input' %}
+                            <span class="badge" style="background: #fef3c7; color: #a16207;">Needs Input</span>
+                            {% elif sdata.get('generation_status') == 'failed' %}
+                            <span class="badge" style="background: #fee2e2; color: #9f403d;">Failed</span>
+                            {% endif %}
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--on-surface-variant);">
+                            {% if screen.description %}
+                            {{ screen.description[:150] }}{% if screen.description|length > 150 %}...{% endif %}
+                            {% else %}
+                            Updated {{ screen.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end;">
+                    <a href="{{ url_for('screens.create', project_id=project.id) }}?parent_id={{ screen.id }}" class="btn btn-small">Add Child</a>
+                    <a href="{{ url_for('screens.detail', project_id=project.id, id=screen.id) }}" class="btn btn-small">Open</a>
+                    <form method="POST" action="{{ url_for('screens.delete', project_id=project.id, id=screen.id) }}" class="inline-form">
+                        <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this folder and its materials?')">Delete</button>
+                    </form>
+                </div>
             </div>
-            {% elif sdata.get('html') %}
-            <div style="width: 100%; height: 160px; background: var(--surface-container-lowest); border-radius: var(--radius-sm); margin-bottom: 0.75rem; overflow: hidden; position: relative;">
-                <iframe srcdoc="{{ sdata['html'] | e }}" sandbox="" style="width: 200%; height: 200%; transform: scale(0.5); transform-origin: 0 0; pointer-events: none; border: none;"></iframe>
-            </div>
-            {% else %}
-            <div style="width: 100%; height: 160px; background: var(--surface-container); border-radius: var(--radius-sm); margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: center;">
-                <span class="material-symbols-outlined" style="font-size: 2.5rem; color: var(--outline-variant);">devices</span>
-            </div>
-            {% endif %}
-            <h3 style="font-size: 0.95rem; margin-bottom: 0.25rem; font-weight: 600;">{{ screen.name }}</h3>
-        </a>
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-            <span class="doc-type-badge">{{ device_labels.get(screen.device_type.upper(), screen.device_type) }}</span>
-            {% if sdata.get('prompt') %}
-            <span class="badge" title="{{ sdata['prompt'] }}">AI Generated</span>
-            {% endif %}
-            {% if sdata.get('generation_status') in ('queued', 'running', 'recovering') %}
-            <span class="badge" style="background: var(--secondary-container); color: var(--on-secondary-container);">Generating</span>
-            {% elif sdata.get('generation_status') == 'needs_input' %}
-            <span class="badge" style="background: #fef3c7; color: #a16207;">Needs Input</span>
-            {% elif sdata.get('generation_status') == 'failed' %}
-            <span class="badge" style="background: #fee2e2; color: #9f403d;">Failed</span>
-            {% endif %}
         </div>
-        {% if screen.description %}
-        <p style="font-size: 0.8125rem; color: var(--on-surface-variant); margin-bottom: 0.5rem;">{{ screen.description[:100] }}{% if screen.description|length > 100 %}...{% endif %}</p>
-        {% endif %}
-        {% if sdata.get('generation_status') == 'needs_input' and sdata.get('assistant_text') %}
-        <p style="font-size: 0.75rem; color: #9a3412; margin-bottom: 0.5rem;">{{ sdata.get('assistant_text')[:120] }}{% if sdata.get('assistant_text')|length > 120 %}...{% endif %}</p>
-        {% endif %}
-        {% if sdata.get('generation_status') == 'failed' and sdata.get('generation_error') %}
-        <p style="font-size: 0.75rem; color: var(--error); margin-bottom: 0.5rem;">{{ sdata.get('generation_error')[:120] }}{% if sdata.get('generation_error')|length > 120 %}...{% endif %}</p>
-        {% endif %}
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-            <small style="color: var(--outline);">Updated {{ screen.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
-            <form method="POST" action="{{ url_for('screens.delete', project_id=project.id, id=screen.id) }}" class="inline-form">
-                <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this screen?')">Delete</button>
-            </form>
-        </div>
+        {% endfor %}
     </div>
-    {% endfor %}
 </div>
 {% else %}
-<p class="empty-state">No screens yet. Generate one with AI or add manually.</p>
+<div class="artifact-card" style="padding: 2rem; text-align: center;">
+    <span class="material-symbols-outlined" style="font-size: 3rem; color: var(--outline-variant); display: block; margin-bottom: 0.75rem;">folder</span>
+    <p style="color: var(--on-surface-variant); margin-bottom: 1rem;">No view folders yet. Create one manually or generate one with Stitch.</p>
+    <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+        <a href="{{ url_for('screens.generate', project_id=project.id) }}" class="btn btn-primary">Generate Folder</a>
+        <a href="{{ url_for('screens.create', project_id=project.id) }}" class="btn">Create Folder</a>
+    </div>
+</div>
 {% endif %}
 {% endblock %}

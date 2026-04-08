@@ -22,13 +22,18 @@
     </div>
 </div>
 
-<table class="detail-table">
-    {% include "documents/_test_id_display.html" %}
-</table>
-
 <div class="document-content">
     <h3>Test Scope</h3>
     <p>{{ data.get('test_scope', '—') }}</p>
+
+    {% if data.get('tags') %}
+    <h3>Tags</h3>
+    <div class="actions">
+        {% for tag in data.get('tags', []) %}
+        <span class="badge">{{ tag }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     {% if data.get('test_strategy') %}
     <h3>Test Strategy</h3>
@@ -38,15 +43,30 @@
     {% if data.get('test_cases') %}
     <h3>Test Cases</h3>
     <table class="data-table">
-        <thead><tr><th>#</th><th>Description</th><th>Steps</th><th>Expected Result</th><th>Status</th></tr></thead>
+        <thead><tr><th>#</th><th>Test Name</th><th>Description</th><th>Test UID</th><th>Steps</th><th>Expected Result</th><th>Plan Status</th><th>Latest CI</th></tr></thead>
         <tbody>
             {% for tc in data.test_cases %}
+            {% set ci = case_results.get(tc.test_name.lower()) if case_results is defined and tc.get('test_name') else none %}
             <tr>
                 <td>{{ loop.index }}</td>
+                <td>{% if tc.get('test_name') %}<code>{{ tc.test_name }}</code>{% else %}—{% endif %}</td>
                 <td>{{ tc.description }}</td>
+                <td>{% if tc.get('test_uid') %}<code>{{ tc.test_uid }}</code>{% else %}—{% endif %}</td>
                 <td>{{ tc.steps }}</td>
                 <td>{{ tc.expected_result }}</td>
                 <td>{{ tc.status | replace('_', ' ') | capitalize }}</td>
+                <td>
+                    {% if ci %}
+                        {% set result = ci.get('result') %}
+                        {% set run = ci.get('run') %}
+                        <span class="badge badge-{% if result.status in ['failed', 'error'] %}high{% elif result.status == 'passed' %}low{% else %}medium{% endif %}">{{ result.status | replace('_', ' ') | capitalize }}</span>
+                        {% if run %}
+                        <div><a href="{{ run.run_url }}" target="_blank" rel="noopener">Run {{ run.commit_sha[:7] }}</a></div>
+                        {% endif %}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>

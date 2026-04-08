@@ -1,11 +1,16 @@
 import json
+import mimetypes
+import os
+import shutil
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import time
 import traceback as traceback_module
 import traceback
+import uuid
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, send_file, Response
+from werkzeug.utils import secure_filename
 
 from app.services.project_service import ProjectService, ProjectServiceUnavailableError
 from app.services.screen_service import ScreenService
@@ -74,6 +79,493 @@ def _get_project_or_redirect(project_id):
         flash("Project not found.", "error")
         return None
     return project
+
+
+def _screen_folder_name(screen):
+    return (screen.data or {}).get("folder_name") or screen.name
+
+
+def _screen_parent_id(screen):
+    data = screen.data or {}
+    parent_id = data.get("parent_id")
+    return str(parent_id) if parent_id else ""
+
+
+def _default_wireframe(name="Wireframe 1"):
+    return {
+        "id": f"wfdoc-{uuid.uuid4().hex[:10]}",
+        "name": name,
+        "canvas": {"width": 1200, "height": 760},
+        "items": [],
+        "connections": [],
+        "created_at": _utc_now_iso(),
+        "updated_at": _utc_now_iso(),
+    }
+
+
+def _slugify_filename(value, fallback="wireframe"):
+    cleaned = secure_filename((value or "").strip())
+    return cleaned or fallback
+
+
+def _screen_wireframes(data):
+    if not isinstance(data, dict):
+        return []
+    wireframes = data.get("wireframes", [])
+    normalized = []
+    if isinstance(wireframes, list):
+        for index, item in enumerate(wireframes, start=1):
+            if not isinstance(item, dict):
+                continue
+            normalized.append({
+                "id": item.get("id") or f"wfdoc-{uuid.uuid4().hex[:10]}",
+                "name": item.get("name") or f"Wireframe {index}",
+                "canvas": item.get("canvas") or {"width": 1200, "height": 760},
+                "items": item.get("items") if isinstance(item.get("items"), list) else [],
+                "connections": item.get("connections") if isinstance(item.get("connections"), list) else [],
+                "created_at": item.get("created_at") or _utc_now_iso(),
+                "updated_at": item.get("updated_at") or _utc_now_iso(),
+            })
+    if normalized:
+        return normalized
+    legacy = data.get("wireframe")
+    if isinstance(legacy, dict):
+        migrated = _default_wireframe()
+        migrated["canvas"] = legacy.get("canvas") or migrated["canvas"]
+        migrated["items"] = legacy.get("items") if isinstance(legacy.get("items"), list) else []
+        migrated["connections"] = legacy.get("connections") if isinstance(legacy.get("connections"), list) else []
+        migrated["created_at"] = legacy.get("created_at") or migrated["created_at"]
+        migrated["updated_at"] = legacy.get("updated_at") or migrated["updated_at"]
+        return [migrated]
+    return []
+
+
+def _find_wireframe(screen, wireframe_id):
+    data = screen.data or {}
+    wireframes = _screen_wireframes(data)
+    if wireframe_id:
+        for wireframe in wireframes:
+            if wireframe["id"] == wireframe_id:
+                return wireframe
+    return wireframes[0] if wireframes else None
+
+
+def _wireframe_export_payload(screen, wireframe):
+    return {
+        "project_id": screen.project_id,
+        "screen_id": screen.id,
+        "screen_name": screen.name,
+        "folder_name": _screen_folder_name(screen),
+        "wireframe_id": wireframe["id"],
+        "wireframe_name": wireframe["name"],
+        "canvas": wireframe.get("canvas", {}),
+        "items": wireframe.get("items", []),
+        "connections": wireframe.get("connections", []),
+        "created_at": wireframe.get("created_at"),
+        "updated_at": wireframe.get("updated_at"),
+    }
+
+
+def _wireframe_export_markdown(screen, wireframe):
+    payload = _wireframe_export_payload(screen, wireframe)
+    lines = [
+        f"# {payload['wireframe_name']}",
+        "",
+        f"- Folder: {payload['folder_name']}",
+        f"- Screen: {payload['screen_name']}",
+        f"- Wireframe ID: {payload['wireframe_id']}",
+        f"- Canvas: {payload['canvas'].get('width', 0)}x{payload['canvas'].get('height', 0)}",
+        f"- Blocks: {len(payload['items'])}",
+        f"- Connections: {len(payload['connections'])}",
+    ]
+    if payload.get("updated_at"):
+        lines.append(f"- Updated: {payload['updated_at']}")
+    lines.extend(["", "## Blocks", ""])
+    if payload["items"]:
+        for item in payload["items"]:
+            label = item.get("label") or "(untitled)"
+            object_id = item.get("objectId") or "n/a"
+            item_type = item.get("type") or "block"
+            parent_id = item.get("parentId") or "none"
+            position = f"({item.get('x', 0)}, {item.get('y', 0)})"
+            size = f"{item.get('width', 0)}x{item.get('height', 0)}"
+            lines.append(f"- {label}")
+            lines.append(f"  Type: {item_type}, Block ID: {object_id}, Parent: {parent_id}")
+            lines.append(f"  Position: {position}, Size: {size}")
+            if item.get("notes"):
+                lines.append(f"  Notes: {item['notes']}")
+    else:
+        lines.append("- No blocks")
+    lines.extend(["", "## Connections", ""])
+    if payload["connections"]:
+        for connection in payload["connections"]:
+            lines.append(f"- {connection.get('from', 'unknown')} -> {connection.get('to', 'unknown')}")
+    else:
+        lines.append("- No connections")
+    return "\n".join(lines) + "\n"
+
+
+def _screen_materials(data):
+    materials = data.get("materials", []) if isinstance(data, dict) else []
+    if not isinstance(materials, list):
+        return []
+    normalized = []
+    for item in materials:
+        if not isinstance(item, dict):
+            continue
+        normalized.append(item)
+    return normalized
+
+
+def _screen_material_count(screen):
+    data = screen.data or {}
+    return len(_screen_materials(data))
+
+
+def _screen_depth(screen_map, screen_id):
+    depth = 0
+    current = screen_map.get(screen_id)
+    seen = set()
+    while current:
+        parent_id = _screen_parent_id(current)
+        if not parent_id or parent_id in seen:
+            break
+        seen.add(parent_id)
+        current = screen_map.get(parent_id)
+        depth += 1
+    return depth
+
+
+def _screen_ancestor_ids(screen_map, screen_id):
+    ancestors = set()
+    current = screen_map.get(screen_id)
+    while current:
+        parent_id = _screen_parent_id(current)
+        if not parent_id or parent_id in ancestors:
+            break
+        ancestors.add(parent_id)
+        current = screen_map.get(parent_id)
+    return ancestors
+
+
+def _screen_parent_options(screens, current_screen=None):
+    screen_map = {screen.id: screen for screen in screens}
+    blocked = {current_screen.id} | _screen_ancestor_ids(screen_map, current_screen.id) if current_screen else set()
+    options = []
+    for screen in screens:
+        if screen.id in blocked:
+            continue
+        options.append({
+            "id": screen.id,
+            "label": _screen_folder_name(screen),
+            "depth": _screen_depth(screen_map, screen.id),
+        })
+    options.sort(key=lambda item: (item["depth"], item["label"].lower()))
+    return options
+
+
+def _valid_parent_id(screens, selected_parent_id, current_screen=None):
+    if not selected_parent_id:
+        return ""
+    options = {item["id"] for item in _screen_parent_options(screens, current_screen=current_screen)}
+    return selected_parent_id if selected_parent_id in options else ""
+
+
+def _screen_tree_items(screens):
+    by_parent = {}
+    screen_map = {screen.id: screen for screen in screens}
+    for screen in screens:
+        parent_id = _screen_parent_id(screen)
+        if parent_id and parent_id in screen_map and parent_id != screen.id:
+            by_parent.setdefault(parent_id, []).append(screen)
+        else:
+            by_parent.setdefault("", []).append(screen)
+
+    for items in by_parent.values():
+        items.sort(key=lambda screen: _screen_folder_name(screen).lower())
+
+    ordered = []
+
+    def visit(screen, depth):
+        ordered.append({"screen": screen, "depth": depth, "has_children": bool(by_parent.get(screen.id))})
+        for child in by_parent.get(screen.id, []):
+            visit(child, depth + 1)
+
+    for root in by_parent.get("", []):
+        visit(root, 0)
+    return ordered
+
+
+def _screen_storage_dir(screen_id):
+    return os.path.join(current_app.config["SCREEN_MATERIALS_DIR"], screen_id)
+
+
+def _material_storage_path(screen_id, stored_name):
+    return os.path.join(_screen_storage_dir(screen_id), stored_name)
+
+
+def _write_material_file(screen_id, stored_name, content, mode="w"):
+    storage_dir = _screen_storage_dir(screen_id)
+    os.makedirs(storage_dir, exist_ok=True)
+    destination = _material_storage_path(screen_id, stored_name)
+    with open(destination, mode, encoding="utf-8") as handle:
+        handle.write(content)
+    return destination
+
+
+def _build_material_download_url(project_id, screen_id, material_id):
+    return url_for(
+        "screens.download_material",
+        project_id=project_id,
+        id=screen_id,
+        material_id=material_id,
+    )
+
+
+def _material_badge(material):
+    kind = material.get("kind", "reference")
+    labels = {
+        "upload": "Uploaded File",
+        "stitch-preview": "Stitch Preview",
+        "stitch-html": "Stitch HTML",
+        "html": "HTML Snippet",
+        "wireframe": "Wireframe Board",
+        "reference": "Reference Link",
+    }
+    return labels.get(kind, "Material")
+
+
+def _material_icon(material):
+    kind = material.get("kind", "reference")
+    if kind in {"upload", "stitch-html", "html"}:
+        return "description"
+    if kind == "wireframe":
+        return "dashboard_customize"
+    if kind == "stitch-preview":
+        return "image"
+    return "link"
+
+
+def _upsert_material(data, material):
+    materials = _screen_materials(data)
+    materials = [item for item in materials if item.get("id") != material["id"]]
+    materials.insert(0, material)
+    data["materials"] = materials
+    return data
+
+
+def _create_material(
+    *,
+    title,
+    kind,
+    source,
+    created_at=None,
+    text_content="",
+    external_url="",
+    storage_name="",
+    original_filename="",
+    content_type="",
+    size_bytes=None,
+):
+    timestamp = created_at or _utc_now_iso()
+    material_id = f"mat-{uuid.uuid4().hex[:12]}"
+    return {
+        "id": material_id,
+        "title": title,
+        "kind": kind,
+        "source": source,
+        "created_at": timestamp,
+        "updated_at": timestamp,
+        "text_content": text_content,
+        "external_url": external_url,
+        "storage_name": storage_name,
+        "original_filename": original_filename,
+        "content_type": content_type,
+        "size_bytes": size_bytes,
+    }
+
+
+def _sync_screen_materials(screen):
+    data = dict(screen.data or {})
+    materials = _screen_materials(data)
+
+    html = data.get("html", "")
+    image_url = data.get("image_url", "")
+    wireframes = _screen_wireframes(data)
+
+    materials = [
+        item for item in materials
+        if item.get("source") not in {"screen_html", "screen_image", "wireframe_board"}
+    ]
+
+    if image_url:
+        materials.insert(0, {
+            "id": "screen-image",
+            "title": "Latest screen preview",
+            "kind": "stitch-preview" if data.get("stitch_screen_id") else "reference",
+            "source": "screen_image",
+            "created_at": data.get("generation_finished_at") or _utc_now_iso(),
+            "updated_at": data.get("generation_finished_at") or _utc_now_iso(),
+            "text_content": "",
+            "external_url": image_url,
+            "storage_name": "",
+            "original_filename": "",
+            "content_type": "image",
+            "size_bytes": None,
+        })
+
+    if html:
+        stored_name = "current-screen.html"
+        file_path = _write_material_file(screen.id, stored_name, html)
+        materials.insert(0, {
+            "id": "screen-html",
+            "title": "Current screen HTML",
+            "kind": "stitch-html" if data.get("stitch_screen_id") else "html",
+            "source": "screen_html",
+            "created_at": data.get("generation_finished_at") or _utc_now_iso(),
+            "updated_at": data.get("generation_finished_at") or _utc_now_iso(),
+            "text_content": "",
+            "external_url": data.get("html_download_url", ""),
+            "storage_name": stored_name,
+            "original_filename": "current-screen.html",
+            "content_type": "text/html",
+            "size_bytes": os.path.getsize(file_path),
+        })
+
+    for wireframe in reversed(wireframes):
+        items = wireframe.get("items", [])
+        if isinstance(items, list):
+            materials.insert(0, {
+                "id": f"wireframe-board-{wireframe['id']}",
+                "title": wireframe.get("name") or "Wireframe",
+                "kind": "wireframe",
+                "source": "wireframe_board",
+                "wireframe_id": wireframe["id"],
+                "created_at": wireframe.get("created_at") or _utc_now_iso(),
+                "updated_at": wireframe.get("updated_at") or _utc_now_iso(),
+                "text_content": "",
+                "external_url": "",
+                "storage_name": "",
+                "original_filename": "",
+                "content_type": "application/json",
+                "size_bytes": len(json.dumps(wireframe).encode("utf-8")),
+            })
+
+    data["materials"] = materials
+    data["folder_name"] = data.get("folder_name") or screen.name
+    data["wireframes"] = wireframes
+    data["wireframe"] = None
+    ScreenService.update(screen, data=data)
+    return ScreenService.get(screen.id)
+
+
+def _material_view_model(project_id, screen_id, material):
+    item = dict(material)
+    item["badge"] = _material_badge(item)
+    item["icon"] = _material_icon(item)
+    item["download_url"] = ""
+    item["open_url"] = item.get("external_url", "")
+    item["is_file"] = bool(item.get("storage_name"))
+    item["is_html"] = (item.get("content_type") == "text/html") or item.get("kind") in {"html", "stitch-html"}
+    item["can_delete"] = item.get("source") == "upload"
+    item["is_wireframe"] = item.get("kind") == "wireframe"
+    item["can_edit"] = item["is_html"] and (
+        item.get("is_file") or item.get("source") == "screen_html"
+    )
+    if item["is_file"]:
+        item["download_url"] = _build_material_download_url(project_id, screen_id, item["id"])
+        item["open_url"] = item["download_url"]
+    elif item["is_wireframe"]:
+        item["open_url"] = url_for(
+            "screens.wireframe_editor",
+            project_id=project_id,
+            id=screen_id,
+            wireframe_id=item.get("wireframe_id", ""),
+        )
+    return item
+
+
+def _screen_detail_context(project, screen):
+    synced_screen = _sync_screen_materials(screen)
+    data = synced_screen.data or {}
+    materials = [
+        _material_view_model(project.id, synced_screen.id, material)
+        for material in _screen_materials(data)
+    ]
+    return {
+        "project": project,
+        "screen": synced_screen,
+        "device_labels": DEVICE_TYPES,
+        "materials": materials,
+        "material_count": len(materials),
+        "folder_name": _screen_folder_name(synced_screen),
+        "wireframes": _screen_wireframes(data),
+    }
+
+
+def _save_uploaded_material(screen, uploaded_file):
+    filename = secure_filename(uploaded_file.filename or "")
+    if not filename:
+        raise ValueError("Choose a file to upload.")
+
+    storage_dir = _screen_storage_dir(screen.id)
+    os.makedirs(storage_dir, exist_ok=True)
+
+    unique_name = f"{uuid.uuid4().hex[:12]}-{filename}"
+    destination = _material_storage_path(screen.id, unique_name)
+    uploaded_file.save(destination)
+
+    content_type = uploaded_file.mimetype or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    size_bytes = os.path.getsize(destination)
+
+    material = _create_material(
+        title=filename,
+        kind="upload",
+        source="upload",
+        storage_name=unique_name,
+        original_filename=filename,
+        content_type=content_type,
+        size_bytes=size_bytes,
+    )
+    data = dict(screen.data or {})
+    _upsert_material(data, material)
+    ScreenService.update(screen, data=data)
+    return material
+
+
+def _delete_material_from_screen(screen, material_id):
+    data = dict(screen.data or {})
+    materials = _screen_materials(data)
+    target = next((item for item in materials if item.get("id") == material_id), None)
+    if not target:
+        return False
+
+    storage_name = target.get("storage_name")
+    if storage_name:
+        file_path = _material_storage_path(screen.id, storage_name)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+    data["materials"] = [item for item in materials if item.get("id") != material_id]
+    ScreenService.update(screen, data=data)
+    return True
+
+
+def _find_material(screen, material_id):
+    for material in _screen_materials(screen.data or {}):
+        if material.get("id") == material_id:
+            return material
+    return None
+
+
+def _material_text_content(screen, material):
+    storage_name = material.get("storage_name")
+    if storage_name:
+        file_path = _material_storage_path(screen.id, storage_name)
+        if os.path.exists(file_path):
+            with open(file_path, "r", encoding="utf-8") as handle:
+                return handle.read()
+    return material.get("text_content", "")
 
 
 def _extract_stitch_content(result):
@@ -302,7 +794,10 @@ def _update_generation_state(screen_id, **changes):
 
     data = dict(screen.data or {})
     data.update(changes)
-    return ScreenService.update_data(screen_id, data)
+    updated = ScreenService.update_data(screen_id, data)
+    if updated and any(key in changes for key in ("html", "image_url", "html_download_url")):
+        return _sync_screen_materials(updated)
+    return updated
 
 
 def _run_screen_generation(app, project_id, screen_id, prompt, device_type, stitch_project_id=""):
@@ -428,13 +923,16 @@ def index(project_id):
     if not project:
         return redirect(url_for("projects.index"))
     screens = ScreenService.get_all_for_project(project_id)
+    screens = [_sync_screen_materials(screen) for screen in screens]
     design_system = DesignSystemService.get_for_project(project_id)
     return render_template(
         "screens/index.html",
         project=project,
         screens=screens,
+        screen_tree=_screen_tree_items(screens),
         design_system=design_system,
         device_labels=DEVICE_TYPES,
+        screen_material_count=_screen_material_count,
     )
 
 
@@ -443,6 +941,8 @@ def create(project_id):
     project = _get_project_or_redirect(project_id)
     if not project:
         return redirect(url_for("projects.index"))
+    screens = [_sync_screen_materials(screen) for screen in ScreenService.get_all_for_project(project_id)]
+    parent_options = _screen_parent_options(screens)
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -450,13 +950,22 @@ def create(project_id):
         description = request.form.get("description", "").strip()
         html_content = request.form.get("html_content", "").strip()
         image_url = request.form.get("image_url", "").strip()
+        parent_id = _valid_parent_id(screens, request.form.get("parent_id", "").strip())
 
         if not name:
             flash("Screen name is required.", "error")
-            return render_template("screens/form.html", project=project,
-                                   device_types=DEVICE_TYPES, data={})
+            return render_template(
+                "screens/form.html",
+                project=project,
+                device_types=DEVICE_TYPES,
+                data={},
+                parent_options=parent_options,
+                selected_parent_id=parent_id,
+            )
 
-        data = {}
+        data = {"folder_name": name}
+        if parent_id:
+            data["parent_id"] = parent_id
         if html_content:
             data["html"] = html_content
         if image_url:
@@ -466,11 +975,18 @@ def create(project_id):
             project_id=project_id, name=name,
             device_type=device_type, description=description, data=data,
         )
+        screen = _sync_screen_materials(screen)
         flash("Screen created.", "success")
         return redirect(url_for("screens.detail", project_id=project_id, id=screen.id))
 
-    return render_template("screens/form.html", project=project,
-                           device_types=DEVICE_TYPES, data={})
+    return render_template(
+        "screens/form.html",
+        project=project,
+        device_types=DEVICE_TYPES,
+        data={},
+        parent_options=parent_options,
+        selected_parent_id=_valid_parent_id(screens, request.args.get("parent_id", "").strip()),
+    )
 
 
 @screens_bp.route("/projects/<project_id>/screens/<id>")
@@ -482,11 +998,203 @@ def detail(project_id, id):
     if not screen or screen.project_id != project_id:
         flash("Screen not found.", "error")
         return redirect(url_for("screens.index", project_id=project_id))
+    return render_template("screens/detail.html", **_screen_detail_context(project, screen))
+
+
+@screens_bp.route("/projects/<project_id>/screens/<id>/materials", methods=["POST"])
+def upload_material(project_id, id):
+    project = _get_project_or_redirect(project_id)
+    if not project:
+        return redirect(url_for("projects.index"))
+    screen = ScreenService.get(id)
+    if not screen or screen.project_id != project_id:
+        flash("Screen folder not found.", "error")
+        return redirect(url_for("screens.index", project_id=project_id))
+
+    uploaded_file = request.files.get("material_file")
+    if not uploaded_file or not uploaded_file.filename:
+        flash("Choose a file to upload.", "error")
+        return redirect(url_for("screens.detail", project_id=project_id, id=id))
+
+    try:
+        _save_uploaded_material(screen, uploaded_file)
+        flash("Material uploaded to the screen folder.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+
+    return redirect(url_for("screens.detail", project_id=project_id, id=id))
+
+
+@screens_bp.route("/projects/<project_id>/screens/<id>/materials/<material_id>")
+def download_material(project_id, id, material_id):
+    screen = ScreenService.get(id)
+    if not screen or screen.project_id != project_id:
+        flash("Screen folder not found.", "error")
+        return redirect(url_for("screens.index", project_id=project_id))
+
+    material = _find_material(screen, material_id)
+    if not material:
+        flash("Material not found.", "error")
+        return redirect(url_for("screens.detail", project_id=project_id, id=id))
+
+    if material.get("storage_name"):
+        file_path = _material_storage_path(screen.id, material["storage_name"])
+        if not os.path.exists(file_path):
+            flash("Material file is missing on disk.", "error")
+            return redirect(url_for("screens.detail", project_id=project_id, id=id))
+        return send_file(
+            file_path,
+            mimetype=material.get("content_type") or "application/octet-stream",
+            as_attachment=False,
+            download_name=material.get("original_filename") or material.get("title") or "material",
+        )
+
+    external_url = material.get("external_url")
+    if external_url:
+        return redirect(external_url)
+
+    flash("This material cannot be opened directly.", "error")
+    return redirect(url_for("screens.detail", project_id=project_id, id=id))
+
+
+@screens_bp.route("/projects/<project_id>/screens/<id>/materials/<material_id>/delete", methods=["POST"])
+def delete_material(project_id, id, material_id):
+    screen = ScreenService.get(id)
+    if not screen or screen.project_id != project_id:
+        flash("Screen folder not found.", "error")
+        return redirect(url_for("screens.index", project_id=project_id))
+
+    if _delete_material_from_screen(screen, material_id):
+        flash("Material removed from the screen folder.", "success")
+    else:
+        flash("Material not found.", "error")
+
+    return redirect(url_for("screens.detail", project_id=project_id, id=id))
+
+
+@screens_bp.route("/projects/<project_id>/screens/<id>/materials/<material_id>/edit", methods=["GET", "POST"])
+def edit_material(project_id, id, material_id):
+    project = _get_project_or_redirect(project_id)
+    if not project:
+        return redirect(url_for("projects.index"))
+    screen = ScreenService.get(id)
+    if not screen or screen.project_id != project_id:
+        flash("Screen folder not found.", "error")
+        return redirect(url_for("screens.index", project_id=project_id))
+
+    screen = _sync_screen_materials(screen)
+    material = _find_material(screen, material_id)
+    if not material:
+        flash("Material not found.", "error")
+        return redirect(url_for("screens.detail", project_id=project_id, id=id))
+
+    if material.get("content_type") != "text/html":
+        flash("Only HTML materials can be edited here.", "error")
+        return redirect(url_for("screens.detail", project_id=project_id, id=id))
+
+    if request.method == "POST":
+        html_content = request.form.get("html_content", "")
+        data = dict(screen.data or {})
+        if material.get("source") == "screen_html":
+            data["html"] = html_content
+            ScreenService.update(screen, data=data)
+            _sync_screen_materials(screen)
+        elif material.get("storage_name"):
+            _write_material_file(screen.id, material["storage_name"], html_content)
+            materials = _screen_materials(data)
+            for item in materials:
+                if item.get("id") == material_id:
+                    item["updated_at"] = _utc_now_iso()
+                    item["size_bytes"] = len(html_content.encode("utf-8"))
+                    break
+            data["materials"] = materials
+            ScreenService.update(screen, data=data)
+        flash("HTML file updated.", "success")
+        return redirect(url_for("screens.detail", project_id=project_id, id=id))
+
     return render_template(
-        "screens/detail.html",
+        "screens/edit_material.html",
         project=project,
         screen=screen,
-        device_labels=DEVICE_TYPES,
+        folder_name=_screen_folder_name(screen),
+        material=material,
+        html_content=_material_text_content(screen, material),
+    )
+
+
+@screens_bp.route("/projects/<project_id>/screens/<id>/wireframe")
+def wireframe_editor(project_id, id):
+    project = _get_project_or_redirect(project_id)
+    if not project:
+        return redirect(url_for("projects.index"))
+    screen = ScreenService.get(id)
+    if not screen or screen.project_id != project_id:
+        flash("Screen folder not found.", "error")
+        return redirect(url_for("screens.index", project_id=project_id))
+
+    screen = _sync_screen_materials(screen)
+    data = dict(screen.data or {})
+    wireframes = _screen_wireframes(data)
+    if request.args.get("new") == "1":
+        new_wireframe = _default_wireframe(f"Wireframe {len(wireframes) + 1}")
+        wireframes.append(new_wireframe)
+        data["wireframes"] = wireframes
+        data["wireframe"] = None
+        ScreenService.update(screen, data=data)
+        return redirect(
+            url_for("screens.wireframe_editor", project_id=project_id, id=id, wireframe_id=new_wireframe["id"])
+        )
+
+    if not wireframes:
+        initial_wireframe = _default_wireframe("Wireframe 1")
+        wireframes = [initial_wireframe]
+        data["wireframes"] = wireframes
+        data["wireframe"] = None
+        ScreenService.update(screen, data=data)
+        screen = ScreenService.get(screen.id)
+
+    selected_id = request.args.get("wireframe_id", "").strip()
+    selected_wireframe = next((item for item in wireframes if item["id"] == selected_id), None)
+    if not selected_wireframe:
+        selected_wireframe = wireframes[0]
+
+    return render_template(
+        "screens/wireframe.html",
+        project=project,
+        screen=screen,
+        folder_name=_screen_folder_name(screen),
+        wireframe=selected_wireframe,
+        wireframes=wireframes,
+    )
+
+
+@screens_bp.route("/projects/<project_id>/screens/<id>/wireframes/<wireframe_id>/export")
+def export_wireframe(project_id, id, wireframe_id):
+    screen = ScreenService.get(id)
+    if not screen or screen.project_id != project_id:
+        flash("Screen folder not found.", "error")
+        return redirect(url_for("screens.index", project_id=project_id))
+
+    screen = _sync_screen_materials(screen)
+    wireframe = _find_wireframe(screen, wireframe_id)
+    if not wireframe:
+        flash("Wireframe not found.", "error")
+        return redirect(url_for("screens.wireframe_editor", project_id=project_id, id=id))
+
+    fmt = request.args.get("format", "json")
+    filename = _slugify_filename(f"{_screen_folder_name(screen)}-{wireframe['name']}", "wireframe")
+    if fmt == "markdown":
+        markdown = _wireframe_export_markdown(screen, wireframe)
+        return Response(
+            markdown,
+            mimetype="text/markdown",
+            headers={"Content-Disposition": f"attachment; filename={filename}.md"},
+        )
+
+    return Response(
+        json.dumps(_wireframe_export_payload(screen, wireframe), indent=2),
+        mimetype="application/json",
+        headers={"Content-Disposition": f"attachment; filename={filename}.json"},
     )
 
 
@@ -499,6 +1207,9 @@ def edit(project_id, id):
     if not screen or screen.project_id != project_id:
         flash("Screen not found.", "error")
         return redirect(url_for("screens.index", project_id=project_id))
+    screen = _sync_screen_materials(screen)
+    screens = [_sync_screen_materials(item) for item in ScreenService.get_all_for_project(project_id)]
+    parent_options = _screen_parent_options(screens, current_screen=screen)
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -506,13 +1217,23 @@ def edit(project_id, id):
         description = request.form.get("description", "").strip()
         html_content = request.form.get("html_content", "").strip()
         image_url = request.form.get("image_url", "").strip()
+        parent_id = _valid_parent_id(screens, request.form.get("parent_id", "").strip(), current_screen=screen)
 
         if not name:
             flash("Screen name is required.", "error")
-            return render_template("screens/form.html", project=project, screen=screen,
-                                   device_types=DEVICE_TYPES, data=screen.data or {})
+            return render_template(
+                "screens/form.html",
+                project=project,
+                screen=screen,
+                device_types=DEVICE_TYPES,
+                data=screen.data or {},
+                parent_options=parent_options,
+                selected_parent_id=parent_id,
+            )
 
         data = dict(screen.data or {})
+        data["folder_name"] = name
+        data["parent_id"] = parent_id or None
         if html_content:
             data["html"] = html_content
         elif "html" in data and not html_content:
@@ -522,17 +1243,26 @@ def edit(project_id, id):
 
         ScreenService.update(screen, name=name, device_type=device_type,
                              description=description, data=data)
+        _sync_screen_materials(screen)
         flash("Screen updated.", "success")
         return redirect(url_for("screens.detail", project_id=project_id, id=id))
 
-    return render_template("screens/form.html", project=project, screen=screen,
-                           device_types=DEVICE_TYPES, data=screen.data or {})
+    return render_template(
+        "screens/form.html",
+        project=project,
+        screen=screen,
+        device_types=DEVICE_TYPES,
+        data=screen.data or {},
+        parent_options=parent_options,
+        selected_parent_id=_screen_parent_id(screen),
+    )
 
 
 @screens_bp.route("/projects/<project_id>/screens/<id>/delete", methods=["POST"])
 def delete(project_id, id):
     screen = ScreenService.get(id)
     if screen and screen.project_id == project_id:
+        shutil.rmtree(_screen_storage_dir(screen.id), ignore_errors=True)
         ScreenService.delete(screen)
         flash("Screen deleted.", "success")
     return redirect(url_for("screens.index", project_id=project_id))
@@ -565,6 +1295,7 @@ def generate(project_id):
 
         data = {
             "prompt": prompt,
+            "folder_name": screen_name,
             "stitch_project_id": stitch_project_id,
             "generation_status": "queued",
             "generation_error": "",
@@ -654,6 +1385,7 @@ def edit_with_ai(project_id, id):
             data["last_edit_prompt"] = prompt
 
             ScreenService.update(screen, data=data)
+            _sync_screen_materials(screen)
             flash("Screen updated with AI edits.", "success")
             return redirect(url_for("screens.detail", project_id=project_id, id=id))
 
@@ -717,6 +1449,7 @@ def generate_variants(project_id, id):
                 description=f"Variant of '{screen.name}'",
                 data=data,
             )
+            variant = _sync_screen_materials(variant)
 
             flash("Variant generated!", "success")
             return redirect(url_for("screens.detail", project_id=project_id, id=variant.id))
@@ -871,4 +1604,6 @@ def api_update(id):
         description=body.get("description"),
         data=body.get("data"),
     )
+    if body.get("data") is not None:
+        _sync_screen_materials(screen)
     return jsonify({"status": "ok"})

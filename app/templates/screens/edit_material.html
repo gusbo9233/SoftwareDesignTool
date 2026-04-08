@@ -1,0 +1,39 @@
+{% extends "project_layout.html" %}
+{% set active_section = "screens" %}
+
+{% block title %}Edit HTML File - {{ folder_name }} - {{ project.name }}{% endblock %}
+
+{% block breadcrumb_extra %}
+<span class="text-outline-variant">/</span>
+<a href="{{ url_for('screens.index', project_id=project.id) }}" class="hover:text-primary transition-colors">View Design</a>
+<span class="text-outline-variant">/</span>
+<a href="{{ url_for('screens.detail', project_id=project.id, id=screen.id) }}" class="hover:text-primary transition-colors">{{ folder_name }}</a>
+<span class="text-outline-variant">/</span>
+<span>Edit HTML File</span>
+{% endblock %}
+
+{% block project_content %}
+<div class="page-header">
+    <div>
+        <h1>Edit HTML File</h1>
+        <p style="color: var(--on-surface-variant); font-size: 0.9rem; margin-top: 0.45rem; max-width: 48rem;">
+            Update the HTML source stored for <strong>{{ material.title }}</strong>.
+        </p>
+    </div>
+    <div class="actions">
+        <a href="{{ url_for('screens.detail', project_id=project.id, id=screen.id) }}" class="btn">Back to Folder</a>
+    </div>
+</div>
+
+<form method="POST" class="form form-wide">
+    <div class="form-group">
+        <label for="html_content">HTML Content</label>
+        <textarea id="html_content" name="html_content" rows="24" style="font-family: 'Space Grotesk', monospace;">{{ html_content }}</textarea>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save HTML File</button>
+        <a href="{{ url_for('screens.detail', project_id=project.id, id=screen.id) }}" class="btn">Cancel</a>
+    </div>
+</form>
+{% endblock %}

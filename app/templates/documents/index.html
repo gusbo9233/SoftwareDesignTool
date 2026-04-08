@@ -25,7 +25,7 @@
 </h2>
 
 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-10">
-    {% for type_key, type_label in type_labels.items() %}
+    {% for type_key, type_label in create_type_labels.items() %}
     <a href="{{ url_for('documents.create', project_id=project.id, doc_type=type_key) }}"
        class="group flex items-center gap-2.5 bg-surface-container-low rounded-lg px-4 py-3 hover:bg-surface-container-high hover:text-primary transition-all text-sm font-label text-on-surface-variant font-medium">
         <span class="material-symbols-outlined text-base text-outline group-hover:text-primary transition-colors">add_circle</span>
@@ -59,13 +59,15 @@
                        class="flex items-center gap-2.5 text-sm font-medium text-on-surface hover:text-primary transition-colors">
                         <span class="material-symbols-outlined text-sm text-secondary">description</span>
                         {% if doc.type == 'user_story' %}
-                            User Story: {{ doc.data.get('user_type', 'Untitled') | capitalize }}
+                            {% set stories = doc.data.get('stories', []) %}
+                            {% set primary_story = stories[0] if stories else doc.data %}
+                            User Story{% if stories|length > 1 %}s ({{ stories|length }}){% endif %}: {{ primary_story.get('user_type', 'Untitled') | capitalize }}
                         {% elif doc.type == 'requirement' %}
                             Requirement: {{ doc.data.get('title', 'Untitled') }}
                         {% elif doc.type == 'project_plan' %}
                             Project Plan: {{ doc.data.get('project_name', 'Untitled') }}
                         {% elif doc.type == 'test_plan' %}
-                            Test Plan: {{ doc.data.get('test_scope', 'Untitled')[:50] }}
+                            Test Plan{% if doc.data.get('tags') %} [{{ doc.data.get('tags', []) | join(', ') }}]{% endif %}: {{ doc.data.get('test_scope', 'Untitled')[:50] }}
                         {% elif doc.type == 'adr' %}
                             ADR: {{ doc.data.get('title', 'Untitled') }}
                         {% elif doc.type == 'tech_stack' %}
@@ -82,6 +84,8 @@
                             Resource: {{ doc.data.get('name', 'Untitled') }}
                         {% elif doc.type == 'research' %}
                             Research: {{ doc.data.get('title', 'Untitled') }}
+                        {% elif doc.type == 'folder_structure' %}
+                            Folder Structure: {{ doc.data.get('title', 'Untitled') }}
                         {% else %}
                             {{ type_labels.get(doc.type, doc.type) }}
                         {% endif %}
@@ -93,7 +97,7 @@
                     </span>
                 </td>
                 <td class="px-5 py-3 font-label text-[10px] text-on-surface-variant">
-                    {{ doc.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                    {{ doc.updated_at[:16].replace('T', ' ') if doc.updated_at is string else doc.updated_at.strftime('%Y-%m-%d %H:%M') }}
                 </td>
             </tr>
             {% endfor %}

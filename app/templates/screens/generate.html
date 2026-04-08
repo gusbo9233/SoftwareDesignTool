@@ -1,23 +1,23 @@
 {% extends "project_layout.html" %}
 {% set active_section = "screens" %}
 
-{% block title %}Generate Screen - {{ project.name }}{% endblock %}
+{% block title %}Generate View Folder - {{ project.name }}{% endblock %}
 
 {% block breadcrumb_extra %}
 <span class="text-outline-variant">/</span>
 <a href="{{ url_for('screens.index', project_id=project.id) }}" class="hover:text-primary transition-colors">View Design</a>
 <span class="text-outline-variant">/</span>
-<span>Generate Screen</span>
+<span>Generate Folder</span>
 {% endblock %}
 
 {% block project_content %}
 {% set gdata = data or {} %}
-<h1>Generate Screen with AI</h1>
+<h1>Generate View Folder with AI</h1>
 <p style="color: var(--on-surface-variant); font-size: 0.9rem; margin-bottom: 1.5rem;">
-    Describe the screen you want and Stitch AI will generate it for you in the background.
+    Describe the screen you want and Stitch AI will generate it into a new folder for you in the background.
 </p>
 <p style="color: var(--on-surface-variant); font-size: 0.9rem; margin-bottom: 1.5rem;">
-    You will be redirected to the new screen immediately, where you can follow progress and see any errors if generation fails.
+    You will be redirected to the new folder immediately, where you can follow progress, upload extra references, and see any errors if generation fails.
 </p>
 
 <form method="POST" class="form form-wide" id="generate-form">
@@ -28,8 +28,8 @@
 
     <div class="form-row">
         <div class="form-group">
-            <label for="name">Screen Name</label>
-            <input type="text" id="name" name="name" placeholder="e.g. Login Screen (optional, auto-generated if empty)" value="{{ gdata.get('name', '') }}">
+        <label for="name">Screen Name</label>
+        <input type="text" id="name" name="name" placeholder="e.g. Login Screen (optional, becomes the folder name)" value="{{ gdata.get('name', '') }}">
         </div>
         <div class="form-group">
             <label for="device_type">Device Type</label>

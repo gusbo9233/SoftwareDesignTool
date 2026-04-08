@@ -1,0 +1,870 @@
+{% extends "project_layout.html" %}
+{% set active_section = "screens" %}
+
+{% block title %}Wireframe - {{ folder_name }} - {{ project.name }}{% endblock %}
+
+{% block breadcrumb_extra %}
+<span class="text-outline-variant">/</span>
+<a href="{{ url_for('screens.index', project_id=project.id) }}" class="hover:text-primary transition-colors">View Design</a>
+<span class="text-outline-variant">/</span>
+<a href="{{ url_for('screens.detail', project_id=project.id, id=screen.id) }}" class="hover:text-primary transition-colors">{{ folder_name }}</a>
+<span class="text-outline-variant">/</span>
+<span>Wireframe</span>
+{% endblock %}
+
+{% block project_content %}
+<div class="page-header">
+    <div>
+        <h1>Wireframe Tool</h1>
+        <p style="color: var(--on-surface-variant); font-size: 0.9rem; margin-top: 0.45rem; max-width: 48rem;">
+            Build low-fidelity layout ideas directly in this folder. This board is local to the folder and separate from Stitch.
+        </p>
+    </div>
+    <div class="actions">
+        <a href="{{ url_for('screens.wireframe_editor', project_id=project.id, id=screen.id, new=1) }}" class="btn">
+            <span class="material-symbols-outlined text-sm">add</span>
+            New Wireframe
+        </a>
+        <a href="{{ url_for('screens.export_wireframe', project_id=project.id, id=screen.id, wireframe_id=wireframe.id, format='json') }}" class="btn">
+            <span class="material-symbols-outlined text-sm">data_object</span>
+            Export JSON
+        </a>
+        <a href="{{ url_for('screens.export_wireframe', project_id=project.id, id=screen.id, wireframe_id=wireframe.id, format='markdown') }}" class="btn">
+            <span class="material-symbols-outlined text-sm">text_snippet</span>
+            Export MD
+        </a>
+        <a href="{{ url_for('screens.detail', project_id=project.id, id=screen.id) }}" class="btn">Back to Folder</a>
+    </div>
+</div>
+
+<div class="artifact-card" style="padding: 0.85rem 1rem; margin-bottom: 1rem;">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+        <div>
+            <div style="font-weight: 700;">Wireframe Library</div>
+            <div style="font-size: 0.82rem; color: var(--on-surface-variant);">This folder currently contains {{ wireframes|length }} wireframe{{ '' if wireframes|length == 1 else 's' }}.</div>
+        </div>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            {% for wf in wireframes %}
+            <a href="{{ url_for('screens.wireframe_editor', project_id=project.id, id=screen.id, wireframe_id=wf.id) }}"
+               class="btn {% if wf.id == wireframe.id %}btn-primary{% endif %}">
+                {{ wf.name }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 1rem; align-items: start;">
+    <aside class="artifact-card" style="padding: 1rem; position: sticky; top: 5rem; max-height: calc(100vh - 7rem); overflow: hidden; display: flex; flex-direction: column;">
+        <div style="font-weight: 700; margin-bottom: 0.35rem;">Selected Item</div>
+        <div id="wireframe-inspector-empty" style="font-size: 0.8rem; color: var(--on-surface-variant); margin-bottom: 0.2rem;">Select an item on the board to edit it. Drag to move, use the corner grip to resize, and connect blocks with arrows.</div>
+        <div id="wireframe-inspector" style="display: none;">
+            <label for="wireframe-label" style="display: block; font-size: 0.75rem; color: var(--on-surface-variant); margin-bottom: 0.35rem;">Label</label>
+            <input id="wireframe-label" type="text" style="width: 100%; margin-bottom: 0.65rem;">
+            <label for="wireframe-object-id" style="display: block; font-size: 0.75rem; color: var(--on-surface-variant); margin-bottom: 0.35rem;">Block ID</label>
+            <input id="wireframe-object-id" type="text" style="width: 100%; margin-bottom: 0.65rem;" placeholder="e.g. hero_cta">
+            <label for="wireframe-notes" style="display: block; font-size: 0.75rem; color: var(--on-surface-variant); margin-bottom: 0.35rem;">Notes</label>
+            <textarea id="wireframe-notes" rows="3" style="width: 100%; margin-bottom: 0.65rem;" placeholder="Add guidance, behavior notes, data needs, or questions..."></textarea>
+            <label for="wireframe-parent" style="display: block; font-size: 0.75rem; color: var(--on-surface-variant); margin-bottom: 0.35rem;">Parent</label>
+            <select id="wireframe-parent" style="width: 100%; margin-bottom: 0.65rem;"></select>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.65rem;">
+                <div>
+                    <label for="wireframe-width" style="display: block; font-size: 0.75rem; color: var(--on-surface-variant); margin-bottom: 0.35rem;">Width</label>
+                    <input id="wireframe-width" type="number" min="40" step="8" style="width: 100%;">
+                </div>
+                <div>
+                    <label for="wireframe-height" style="display: block; font-size: 0.75rem; color: var(--on-surface-variant); margin-bottom: 0.35rem;">Height</label>
+                    <input id="wireframe-height" type="number" min="20" step="8" style="width: 100%;">
+                </div>
+            </div>
+            <div style="display: grid; gap: 0.5rem;">
+                <button type="button" id="wireframe-duplicate" class="btn">Duplicate Selected</button>
+                <button type="button" id="wireframe-connect" class="btn">Start Connection</button>
+                <button type="button" id="wireframe-delete" class="btn btn-danger">Delete Selected</button>
+            </div>
+        </div>
+
+        <div style="height: 1px; background: rgba(171,179,183,0.25); margin: 1rem 0;"></div>
+
+        <div style="font-weight: 700; margin-bottom: 0.2rem;">Blocks</div>
+        <p style="font-size: 0.78rem; color: var(--on-surface-variant); margin-bottom: 0.6rem;">Click any block to add it to the board.</p>
+        <div id="wireframe-palette" style="display: grid; gap: 0.5rem; overflow-y: auto; padding-right: 0.25rem; min-height: 0; flex: 1 1 auto;">
+            <button type="button" class="btn wireframe-add" data-type="phone">Phone Frame</button>
+            <button type="button" class="btn wireframe-add" data-type="browser">Browser Frame</button>
+            <button type="button" class="btn wireframe-add" data-type="collection">Collection</button>
+            <button type="button" class="btn wireframe-add" data-type="sidebar">Sidebar</button>
+            <button type="button" class="btn wireframe-add" data-type="header">Header</button>
+            <button type="button" class="btn wireframe-add" data-type="tabs">Tabs</button>
+            <button type="button" class="btn wireframe-add" data-type="card">Card</button>
+            <button type="button" class="btn wireframe-add" data-type="table">Table</button>
+            <button type="button" class="btn wireframe-add" data-type="modal">Modal</button>
+            <button type="button" class="btn wireframe-add" data-type="input">Input</button>
+            <button type="button" class="btn wireframe-add" data-type="button">Button</button>
+            <button type="button" class="btn wireframe-add" data-type="text">Text</button>
+            <button type="button" class="btn wireframe-add" data-type="image">Image</button>
+        </div>
+
+        <div style="height: 1px; background: rgba(171,179,183,0.25); margin: 1rem 0;"></div>
+
+        <div style="display: grid; gap: 0.5rem;">
+            <button type="button" id="wireframe-save" class="btn btn-primary">Save Board</button>
+            <button type="button" id="wireframe-clear" class="btn">Clear Board</button>
+        </div>
+        <div id="wireframe-status" style="font-size: 0.8rem; color: var(--on-surface-variant); margin-top: 0.6rem;"></div>
+    </aside>
+
+    <section class="artifact-card" style="padding: 1rem; overflow: auto;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.85rem;">
+            <div>
+                <div style="font-weight: 700;">{{ wireframe.name }}</div>
+                <div style="font-size: 0.8rem; color: var(--on-surface-variant);">{{ folder_name }} board with snap-to-grid layout planning, resize handles, and directional connections.</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span class="badge" id="wireframe-count">{{ (wireframe.get('items', []) | length) }} items</span>
+                <span class="badge" id="wireframe-connection-count">{{ (wireframe.get('connections', []) | length) }} connections</span>
+            </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.85rem; padding: 0.6rem 0.75rem; background: var(--surface-container-low); border-radius: var(--radius-sm);">
+            <span style="font-size: 0.78rem; font-weight: 700; color: var(--on-surface-variant);">Center Guides</span>
+            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; cursor: pointer;">
+                <input type="radio" name="wireframe-center-guides" value="off" checked>
+                <span>Normal</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; cursor: pointer;">
+                <input type="radio" name="wireframe-center-guides" value="on">
+                <span>Thicker Midlines</span>
+            </label>
+        </div>
+
+        <div id="wireframe-canvas"
+             data-project-id="{{ project.id }}"
+             data-screen-id="{{ screen.id }}"
+             data-initial='{{ wireframe | tojson }}'
+             style="position: relative; width: {{ wireframe.get('canvas', {}).get('width', 1200) }}px; height: {{ wireframe.get('canvas', {}).get('height', 760) }}px; background:
+                linear-gradient(to right, rgba(171,179,183,0.16) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(171,179,183,0.16) 1px, transparent 1px),
+                linear-gradient(180deg, #ffffff, #fbfcfd);
+                background-size: 24px 24px;
+                border: 1px solid rgba(171,179,183,0.35);
+                border-radius: var(--radius-md);
+                overflow: hidden;">
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+    var canvas = document.getElementById('wireframe-canvas');
+    if (!canvas) return;
+
+    var initial = JSON.parse(canvas.dataset.initial || '{}');
+    var screenId = canvas.dataset.screenId;
+    var storedData = {{ (screen.data or {}) | tojson }};
+    var activeWireframeId = {{ wireframe.id | tojson }};
+    var activeWireframeName = {{ wireframe.name | tojson }};
+    var GRID = 8;
+
+    function normalizeCanvas(raw) {
+        return {
+            width: Math.max(640, raw && raw.width ? raw.width : 1200),
+            height: Math.max(520, raw && raw.height ? raw.height : 760)
+        };
+    }
+
+    var state = {
+        canvas: normalizeCanvas(initial.canvas),
+        items: Array.isArray(initial.items) ? initial.items : [],
+        connections: Array.isArray(initial.connections) ? initial.connections : [],
+        selectedId: null,
+        connectModeSourceId: null
+    };
+
+    var labelInput = document.getElementById('wireframe-label');
+    var objectIdInput = document.getElementById('wireframe-object-id');
+    var notesInput = document.getElementById('wireframe-notes');
+    var parentInput = document.getElementById('wireframe-parent');
+    var widthInput = document.getElementById('wireframe-width');
+    var heightInput = document.getElementById('wireframe-height');
+    var duplicateButton = document.getElementById('wireframe-duplicate');
+    var connectButton = document.getElementById('wireframe-connect');
+    var deleteButton = document.getElementById('wireframe-delete');
+    var inspector = document.getElementById('wireframe-inspector');
+    var inspectorEmpty = document.getElementById('wireframe-inspector-empty');
+    var status = document.getElementById('wireframe-status');
+    var count = document.getElementById('wireframe-count');
+    var connectionCount = document.getElementById('wireframe-connection-count');
+    var centerGuideInputs = Array.prototype.slice.call(document.querySelectorAll('input[name="wireframe-center-guides"]'));
+    var pointerState = null;
+
+    var templates = {
+        phone: { label: 'Phone screen', width: 240, height: 460, className: 'phone' },
+        browser: { label: 'Browser frame', width: 620, height: 390, className: 'browser' },
+        collection: { label: 'Collection', width: 360, height: 240, className: 'collection' },
+        sidebar: { label: 'Sidebar', width: 180, height: 420, className: 'sidebar' },
+        header: { label: 'Header', width: 520, height: 56, className: 'header' },
+        tabs: { label: 'Tabs', width: 300, height: 50, className: 'tabs' },
+        card: { label: 'Card', width: 260, height: 150, className: 'card' },
+        table: { label: 'Table', width: 420, height: 220, className: 'table' },
+        modal: { label: 'Modal', width: 320, height: 220, className: 'modal' },
+        input: { label: 'Input field', width: 230, height: 46, className: 'input' },
+        button: { label: 'Button', width: 150, height: 42, className: 'button' },
+        text: { label: 'Text block', width: 260, height: 84, className: 'text' },
+        image: { label: 'Image', width: 220, height: 160, className: 'image' }
+    };
+
+    function nextId(prefix) {
+        return (prefix || 'wf') + '-' + Math.random().toString(36).slice(2, 10);
+    }
+
+    function snap(value) {
+        return Math.round(value / GRID) * GRID;
+    }
+
+    function clamp(value, min, max) {
+        return Math.min(Math.max(value, min), max);
+    }
+
+    function setStatus(message, isError) {
+        status.textContent = message || '';
+        status.style.color = isError ? 'var(--error)' : 'var(--on-surface-variant)';
+    }
+
+    function selectedItem() {
+        return state.items.find(function(item) { return item.id === state.selectedId; }) || null;
+    }
+
+    function getItemById(id) {
+        return state.items.find(function(item) { return item.id === id; }) || null;
+    }
+
+    function descendantsOf(parentId) {
+        var results = [];
+        function collect(id) {
+            state.items.forEach(function(item) {
+                if (item.parentId === id) {
+                    results.push(item);
+                    collect(item.id);
+                }
+            });
+        }
+        collect(parentId);
+        return results;
+    }
+
+    function isDescendant(candidateParentId, itemId) {
+        var current = getItemById(candidateParentId);
+        while (current) {
+            if (current.parentId === itemId) return true;
+            current = current.parentId ? getItemById(current.parentId) : null;
+        }
+        return false;
+    }
+
+    function parentOptionsFor(item) {
+        return state.items.filter(function(candidate) {
+            if (candidate.id === item.id) return false;
+            if (isDescendant(candidate.id, item.id)) return false;
+            return candidate.type === 'collection' || candidate.type === 'phone' || candidate.type === 'browser' || candidate.type === 'modal';
+        });
+    }
+
+    function centerFor(item) {
+        return {
+            x: item.x + item.width / 2,
+            y: item.y + item.height / 2
+        };
+    }
+
+    function syncInspector() {
+        var item = selectedItem();
+        if (!item) {
+            inspector.style.display = 'none';
+            inspectorEmpty.style.display = 'block';
+            labelInput.value = '';
+            objectIdInput.value = '';
+            notesInput.value = '';
+            parentInput.innerHTML = '';
+            widthInput.value = '';
+            heightInput.value = '';
+            connectButton.textContent = 'Start Connection';
+            return;
+        }
+        inspector.style.display = 'block';
+        inspectorEmpty.style.display = 'none';
+        labelInput.value = item.label || '';
+        objectIdInput.value = item.objectId || '';
+        notesInput.value = item.notes || '';
+        parentInput.innerHTML = '';
+        var noneOption = document.createElement('option');
+        noneOption.value = '';
+        noneOption.textContent = 'No parent';
+        parentInput.appendChild(noneOption);
+        parentOptionsFor(item).forEach(function(candidate) {
+            var option = document.createElement('option');
+            option.value = candidate.id;
+            option.textContent = candidate.label || candidate.type || 'Parent';
+            parentInput.appendChild(option);
+        });
+        parentInput.value = item.parentId || '';
+        widthInput.value = item.width || '';
+        heightInput.value = item.height || '';
+        connectButton.textContent = state.connectModeSourceId === item.id ? 'Cancel Connection' : 'Start Connection';
+    }
+
+    function createItem(type, x, y) {
+        var template = templates[type];
+        return {
+            id: nextId('wf'),
+            type: type,
+            objectId: '',
+            className: template.className,
+            label: template.label,
+            x: snap(x || 48),
+            y: snap(y || 48),
+            width: template.width,
+            height: template.height
+        };
+    }
+
+    function cleanupConnections() {
+        state.connections = state.connections.filter(function(connection) {
+            return getItemById(connection.from) && getItemById(connection.to);
+        });
+    }
+
+    function renderConnections() {
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 'wf-connections');
+        svg.setAttribute('width', String(state.canvas.width));
+        svg.setAttribute('height', String(state.canvas.height));
+        svg.setAttribute('viewBox', '0 0 ' + state.canvas.width + ' ' + state.canvas.height);
+
+        var defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        var marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+        marker.setAttribute('id', 'wf-arrowhead');
+        marker.setAttribute('markerWidth', '10');
+        marker.setAttribute('markerHeight', '7');
+        marker.setAttribute('refX', '9');
+        marker.setAttribute('refY', '3.5');
+        marker.setAttribute('orient', 'auto');
+        var arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        arrow.setAttribute('points', '0 0, 10 3.5, 0 7');
+        arrow.setAttribute('fill', '#5a6980');
+        marker.appendChild(arrow);
+        defs.appendChild(marker);
+        svg.appendChild(defs);
+
+        state.connections.forEach(function(connection) {
+            var from = getItemById(connection.from);
+            var to = getItemById(connection.to);
+            if (!from || !to) return;
+            var start = centerFor(from);
+            var end = centerFor(to);
+            var dx = Math.max(40, Math.abs(end.x - start.x) / 2);
+            var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', 'M ' + start.x + ' ' + start.y + ' C ' + (start.x + dx) + ' ' + start.y + ', ' + (end.x - dx) + ' ' + end.y + ', ' + end.x + ' ' + end.y);
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', '#5a6980');
+            path.setAttribute('stroke-width', '2');
+            path.setAttribute('marker-end', 'url(#wf-arrowhead)');
+            svg.appendChild(path);
+        });
+
+        canvas.appendChild(svg);
+    }
+
+    function renderCenterGuides() {
+        if (!state.centerGuides) return;
+
+        var vertical = document.createElement('div');
+        vertical.className = 'wf-center-guide wf-center-guide-vertical';
+        vertical.style.left = (state.canvas.width / 2) + 'px';
+        canvas.appendChild(vertical);
+
+        var horizontal = document.createElement('div');
+        horizontal.className = 'wf-center-guide wf-center-guide-horizontal';
+        horizontal.style.top = (state.canvas.height / 2) + 'px';
+        canvas.appendChild(horizontal);
+    }
+
+    function render() {
+        cleanupConnections();
+        canvas.innerHTML = '';
+        canvas.style.width = state.canvas.width + 'px';
+        canvas.style.height = state.canvas.height + 'px';
+        count.textContent = state.items.length + ' items';
+        connectionCount.textContent = state.connections.length + ' connections';
+
+        renderCenterGuides();
+        renderConnections();
+
+        state.items.forEach(function(item) {
+            var el = document.createElement('button');
+            el.type = 'button';
+            el.className = 'wf-item';
+            if (item.className) el.classList.add('wf-' + item.className);
+            if (item.id === state.selectedId) el.classList.add('wf-selected');
+            if (state.connectModeSourceId === item.id) el.classList.add('wf-connect-source');
+            el.dataset.id = item.id;
+            el.style.left = item.x + 'px';
+            el.style.top = item.y + 'px';
+            el.style.width = item.width + 'px';
+            el.style.height = item.height + 'px';
+            el.innerHTML = '<div class="wf-item-content">' + (item.objectId ? '<span class="wf-item-id">' + item.objectId.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>' : '') + '<span class="wf-item-label">' + (item.label || '') + '</span>' + (item.notes ? '<span class="wf-item-notes">' + item.notes.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>' : '') + '</div>';
+            if (item.type === 'collection') {
+                el.style.zIndex = '0';
+            } else {
+                el.style.zIndex = item.id === state.selectedId ? '4' : '2';
+            }
+            if (item.parentId) el.classList.add('wf-child');
+
+            el.addEventListener('pointerdown', function(event) {
+                if (event.target && event.target.classList.contains('wf-resize-handle')) return;
+                event.preventDefault();
+                state.selectedId = item.id;
+
+                if (state.connectModeSourceId && state.connectModeSourceId !== item.id) {
+                    state.connections.push({
+                        id: nextId('conn'),
+                        from: state.connectModeSourceId,
+                        to: item.id
+                    });
+                    state.connectModeSourceId = null;
+                    setStatus('Connection added.');
+                    render();
+                    return;
+                }
+
+                pointerState = {
+                    mode: 'move',
+                    id: item.id,
+                    pointerId: event.pointerId,
+                    startClientX: event.clientX,
+                    startClientY: event.clientY,
+                    startX: item.x,
+                    startY: item.y,
+                    descendants: descendantsOf(item.id).map(function(desc) {
+                        return { id: desc.id, x: desc.x, y: desc.y };
+                    })
+                };
+                el.setPointerCapture(event.pointerId);
+                render();
+            });
+
+            var resizeHandle = document.createElement('span');
+            resizeHandle.className = 'wf-resize-handle';
+            resizeHandle.title = 'Resize';
+            resizeHandle.addEventListener('pointerdown', function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                state.selectedId = item.id;
+                pointerState = {
+                    mode: 'resize',
+                    id: item.id,
+                    pointerId: event.pointerId,
+                    startClientX: event.clientX,
+                    startClientY: event.clientY,
+                    startWidth: item.width,
+                    startHeight: item.height
+                };
+                resizeHandle.setPointerCapture(event.pointerId);
+                render();
+            });
+            el.appendChild(resizeHandle);
+
+            canvas.appendChild(el);
+        });
+
+        syncInspector();
+    }
+
+    function addItem(type) {
+        if (!templates[type]) return;
+        state.items.push(createItem(type, 48 + (state.items.length % 6) * 32, 48 + (state.items.length % 4) * 32));
+        state.selectedId = state.items[state.items.length - 1].id;
+        state.connectModeSourceId = null;
+        setStatus('');
+        render();
+    }
+
+    canvas.addEventListener('pointerdown', function(event) {
+        if (event.target !== canvas) return;
+        state.selectedId = null;
+        state.connectModeSourceId = null;
+        clearPointerState();
+        render();
+    });
+
+    canvas.addEventListener('pointermove', function(event) {
+        if (!pointerState) return;
+        var item = getItemById(pointerState.id);
+        if (!item) return;
+
+        if (pointerState.mode === 'move') {
+            var nextX = snap(pointerState.startX + (event.clientX - pointerState.startClientX));
+            var nextY = snap(pointerState.startY + (event.clientY - pointerState.startClientY));
+            var parent = item.parentId ? getItemById(item.parentId) : null;
+
+            if (parent) {
+                nextX = clamp(nextX, parent.x + GRID, parent.x + parent.width - item.width - GRID);
+                nextY = clamp(nextY, parent.y + 28, parent.y + parent.height - item.height - GRID);
+            } else {
+                nextX = clamp(nextX, 0, state.canvas.width - item.width);
+                nextY = clamp(nextY, 0, state.canvas.height - item.height);
+            }
+
+            item.x = nextX;
+            item.y = nextY;
+
+            if (!item.parentId && pointerState.descendants && pointerState.descendants.length) {
+                var deltaX = item.x - pointerState.startX;
+                var deltaY = item.y - pointerState.startY;
+                pointerState.descendants.forEach(function(entry) {
+                    var desc = getItemById(entry.id);
+                    if (!desc) return;
+                    desc.x = clamp(snap(entry.x + deltaX), 0, state.canvas.width - desc.width);
+                    desc.y = clamp(snap(entry.y + deltaY), 0, state.canvas.height - desc.height);
+                });
+            }
+        } else if (pointerState.mode === 'resize') {
+            item.width = clamp(snap(pointerState.startWidth + (event.clientX - pointerState.startClientX)), 40, state.canvas.width - item.x);
+            item.height = clamp(snap(pointerState.startHeight + (event.clientY - pointerState.startClientY)), 20, state.canvas.height - item.y);
+        }
+        render();
+    });
+
+    function clearPointerState() {
+        pointerState = null;
+    }
+
+    canvas.addEventListener('pointerup', clearPointerState);
+    canvas.addEventListener('pointerleave', clearPointerState);
+
+    labelInput.addEventListener('input', function() {
+        var item = selectedItem();
+        if (!item) return;
+        item.label = labelInput.value;
+        render();
+    });
+
+    objectIdInput.addEventListener('input', function() {
+        var item = selectedItem();
+        if (!item) return;
+        item.objectId = objectIdInput.value;
+        render();
+    });
+
+    notesInput.addEventListener('input', function() {
+        var item = selectedItem();
+        if (!item) return;
+        item.notes = notesInput.value;
+        render();
+    });
+
+    parentInput.addEventListener('change', function() {
+        var item = selectedItem();
+        if (!item) return;
+        item.parentId = parentInput.value || null;
+        if (item.parentId) {
+            var parent = getItemById(item.parentId);
+            if (parent) {
+                item.x = clamp(item.x, parent.x + GRID, parent.x + parent.width - item.width - GRID);
+                item.y = clamp(item.y, parent.y + 28, parent.y + parent.height - item.height - GRID);
+            }
+        }
+        render();
+    });
+
+    widthInput.addEventListener('input', function() {
+        var item = selectedItem();
+        if (!item) return;
+        item.width = clamp(snap(Number(widthInput.value || item.width)), 40, state.canvas.width - item.x);
+        render();
+    });
+
+    heightInput.addEventListener('input', function() {
+        var item = selectedItem();
+        if (!item) return;
+        item.height = clamp(snap(Number(heightInput.value || item.height)), 20, state.canvas.height - item.y);
+        render();
+    });
+
+    duplicateButton.addEventListener('click', function() {
+        var item = selectedItem();
+        if (!item) return;
+        var copy = JSON.parse(JSON.stringify(item));
+        copy.id = nextId('wf');
+        copy.parentId = item.parentId || null;
+        copy.x = clamp(item.x + 24, 0, state.canvas.width - item.width);
+        copy.y = clamp(item.y + 24, 0, state.canvas.height - item.height);
+        state.items.push(copy);
+        state.selectedId = copy.id;
+        state.connectModeSourceId = null;
+        render();
+    });
+
+    connectButton.addEventListener('click', function() {
+        var item = selectedItem();
+        if (!item) return;
+        if (state.connectModeSourceId === item.id) {
+            state.connectModeSourceId = null;
+            setStatus('Connection mode cancelled.');
+        } else {
+            state.connectModeSourceId = item.id;
+            setStatus('Select another block to connect from "' + (item.label || 'item') + '".');
+        }
+        render();
+    });
+
+    deleteButton.addEventListener('click', function() {
+        if (!state.selectedId) return;
+        state.items.forEach(function(item) {
+            if (item.parentId === state.selectedId) item.parentId = null;
+        });
+        state.items = state.items.filter(function(item) { return item.id !== state.selectedId; });
+        state.connections = state.connections.filter(function(connection) {
+            return connection.from !== state.selectedId && connection.to !== state.selectedId;
+        });
+        state.connectModeSourceId = state.connectModeSourceId === state.selectedId ? null : state.connectModeSourceId;
+        state.selectedId = null;
+        render();
+    });
+
+    document.querySelectorAll('.wireframe-add').forEach(function(button) {
+        button.addEventListener('click', function() {
+            addItem(button.dataset.type);
+        });
+    });
+
+    document.getElementById('wireframe-clear').addEventListener('click', function() {
+        state.items = [];
+        state.connections = [];
+        state.selectedId = null;
+        state.connectModeSourceId = null;
+        render();
+    });
+
+    state.centerGuides = false;
+    centerGuideInputs.forEach(function(input) {
+        input.addEventListener('change', function() {
+            state.centerGuides = input.value === 'on';
+            render();
+        });
+    });
+
+    document.getElementById('wireframe-save').addEventListener('click', function() {
+        setStatus('Saving...');
+        var currentWireframes = Array.isArray(storedData.wireframes) ? storedData.wireframes.slice() : [];
+        var found = false;
+        var nextWireframes = currentWireframes.map(function(entry) {
+            if (!entry || typeof entry !== 'object') return entry;
+            if (entry.id !== activeWireframeId) return entry;
+            found = true;
+            return Object.assign({}, entry, {
+                name: entry.name || activeWireframeName,
+                canvas: state.canvas,
+                items: state.items,
+                connections: state.connections,
+                created_at: entry.created_at || (initial && initial.created_at) || new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            });
+        });
+        if (!found) {
+            nextWireframes.push({
+                id: activeWireframeId,
+                name: activeWireframeName,
+                canvas: state.canvas,
+                items: state.items,
+                connections: state.connections,
+                created_at: (initial && initial.created_at) || new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            });
+        }
+        fetch('/api/screens/' + screenId, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                data: Object.assign({}, storedData, {
+                    wireframe: null,
+                    wireframes: nextWireframes
+                })
+            })
+        })
+        .then(function(response) {
+            if (!response.ok) throw new Error('Could not save the wireframe.');
+            return response.json();
+        })
+        .then(function() {
+            storedData.wireframes = nextWireframes;
+            storedData.wireframe = null;
+            setStatus('Wireframe saved to this folder.');
+        })
+        .catch(function(error) {
+            setStatus(error.message || 'Could not save the wireframe.', true);
+        });
+    });
+
+    render();
+})();
+</script>
+<style>
+.wf-connections {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.wf-center-guide {
+    position: absolute;
+    pointer-events: none;
+    z-index: 1;
+    background: rgba(0, 93, 181, 0.28);
+}
+.wf-center-guide-vertical {
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    margin-left: -1.5px;
+}
+.wf-center-guide-horizontal {
+    left: 0;
+    right: 0;
+    height: 3px;
+    margin-top: -1.5px;
+}
+.wf-item {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #637081;
+    background: rgba(246, 248, 251, 0.96);
+    color: #2b3437;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    text-align: center;
+    padding: 0.4rem;
+    cursor: move;
+    user-select: none;
+    box-shadow: 0 2px 8px rgba(43, 52, 55, 0.08);
+}
+.wf-item-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    max-width: 100%;
+}
+.wf-item-label {
+    font-weight: 600;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.wf-item-id {
+    font-size: 0.64rem;
+    line-height: 1.2;
+    color: #005db5;
+    font-family: "Space Grotesk", sans-serif;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.wf-item-notes {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 0.68rem;
+    line-height: 1.25;
+    color: #5a6980;
+    white-space: pre-wrap;
+    max-width: 100%;
+}
+.wf-selected {
+    outline: 2px solid #005db5;
+    outline-offset: 2px;
+}
+.wf-child {
+    box-shadow: 0 0 0 1px rgba(99, 112, 129, 0.2), 0 2px 8px rgba(43, 52, 55, 0.08);
+}
+.wf-connect-source {
+    box-shadow: 0 0 0 3px rgba(0, 93, 181, 0.18), 0 2px 8px rgba(43, 52, 55, 0.08);
+}
+.wf-resize-handle {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: #5a6980;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.6);
+    cursor: nwse-resize;
+}
+.wf-phone {
+    border-radius: 30px;
+    background: linear-gradient(180deg, #f6f8fb, #eef2f6);
+}
+.wf-collection {
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 1rem;
+    border: 2px dashed #8ca0b8;
+    background: rgba(214, 227, 255, 0.18);
+    color: #415368;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.45);
+}
+.wf-browser::before,
+.wf-table::before,
+.wf-tabs::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+}
+.wf-browser::before {
+    height: 30px;
+    background: rgba(171, 179, 183, 0.28);
+    border-bottom: 1px solid rgba(99, 112, 129, 0.25);
+}
+.wf-header,
+.wf-button,
+.wf-tabs {
+    background: rgba(214, 227, 255, 0.9);
+}
+.wf-sidebar {
+    background: linear-gradient(180deg, #eef2f6, #e4eaef);
+}
+.wf-table {
+    background:
+      linear-gradient(to right, rgba(171,179,183,0.18) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(171,179,183,0.18) 1px, transparent 1px),
+      #fff;
+    background-size: 48px 38px;
+}
+.wf-table::before {
+    height: 34px;
+    background: rgba(171, 179, 183, 0.22);
+    border-bottom: 1px solid rgba(99, 112, 129, 0.22);
+}
+.wf-modal {
+    background: linear-gradient(180deg, #ffffff, #f6f8fb);
+    box-shadow: 0 12px 26px rgba(43, 52, 55, 0.14);
+}
+.wf-image {
+    background:
+      linear-gradient(135deg, rgba(171,179,183,0.22) 25%, transparent 25%) -12px 0/24px 24px,
+      linear-gradient(225deg, rgba(171,179,183,0.22) 25%, transparent 25%) -12px 0/24px 24px,
+      linear-gradient(315deg, rgba(171,179,183,0.22) 25%, transparent 25%) 0 0/24px 24px,
+      linear-gradient(45deg, rgba(171,179,183,0.22) 25%, transparent 25%) 0 0/24px 24px,
+      #f6f8fb;
+}
+</style>
+{% endblock %}

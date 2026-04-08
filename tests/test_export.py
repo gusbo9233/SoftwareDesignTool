@@ -3,6 +3,8 @@ import pytest
 from app.services.document_service import DocumentService
 from app.services.diagram_service import DiagramService
 from app.services.api_endpoint_service import APIEndpointService
+from app.services.project_service import ProjectService
+from app.services.project_template_service import ProjectTemplateService
 from app.export.export_service import ExportService
 
 
@@ -37,8 +39,9 @@ def populated_project(project_id):
     })
     DocumentService.create(project_id=project_id, doc_type="test_plan", data={
         "test_scope": "Export functionality",
+        "tags": ["integration", "e2e"],
         "test_strategy": "Unit + integration tests",
-        "test_cases": [{"description": "JSON export", "steps": "Call export", "expected_result": "Valid JSON", "status": "passed"}],
+        "test_cases": [{"description": "JSON export", "test_name": "export_json", "test_uid": "abc123ef", "steps": "Call export", "expected_result": "Valid JSON", "status": "passed"}],
         "entry_criteria": "Code complete",
         "exit_criteria": "All tests pass",
         "environment": "Python 3.10",
@@ -67,12 +70,25 @@ class TestExportServiceJSON:
         result = ExportService.export_json(project_id)
         assert result is not None
         assert result["project"] == project.name
+        assert result["project_template"]["key"] == "generic"
         assert result["requirements"] == []
         assert result["user_stories"] == []
         assert result["project_plans"] == []
         assert result["test_plans"] == []
         assert result["diagrams"] == []
         assert result["api_endpoints"] == []
+
+    def test_export_with_project_template(self, project):
+        ProjectService.update(project, template_key="aspnetcore_clean_architecture")
+        ProjectTemplateService.seed_project_template(project, "aspnetcore_clean_architecture")
+
+        result = ExportService.export_json(project.id)
+
+        assert result["project_template"]["key"] == "aspnetcore_clean_architecture"
+        assert result["project_template"]["label"] == "ASP.NET Core Clean Architecture"
+        assert "Domain" in " ".join(result["project_template"]["layers"])
+        assert len(result["folder_structures"]) == 1
+        assert any(item["is_fixed"] for item in result["folder_structures"][0]["items"])
 
     def test_export_with_all_artifacts(self, populated_project):
         result = ExportService.export_json(populated_project)
@@ -91,6 +107,34 @@ class TestExportServiceJSON:
         assert story["so_that"] == "share with team"
         assert story["priority"] == "high"
         assert len(story["acceptance_criteria"]) == 2
+
+    def test_multi_user_story_document_exports_each_story(self, project_id):
+        DocumentService.create(project_id=project_id, doc_type="user_story", data={
+            "stories": [
+                {
+                    "user_type": "developer",
+                    "action": "export designs",
+                    "benefit": "share with team",
+                    "priority": "high",
+                    "status": "draft",
+                    "acceptance_criteria": ["Export works"],
+                },
+                {
+                    "user_type": "manager",
+                    "action": "review exports",
+                    "benefit": "approve deliverables",
+                    "priority": "medium",
+                    "status": "approved",
+                    "acceptance_criteria": ["Review is visible"],
+                },
+            ],
+        })
+
+        result = ExportService.export_json(project_id)
+
+        assert len(result["user_stories"]) == 2
+        assert result["user_stories"][0]["as_a"] == "developer"
+        assert result["user_stories"][1]["as_a"] == "manager"
 
     def test_requirement_format(self, populated_project):
         result = ExportService.export_json(populated_project)
@@ -112,7 +156,9 @@ class TestExportServiceJSON:
         result = ExportService.export_json(populated_project)
         tp = result["test_plans"][0]
         assert tp["test_scope"] == "Export functionality"
+        assert tp["tags"] == ["integration", "e2e"]
         assert len(tp["test_cases"]) == 1
+        assert tp["test_cases"][0]["test_name"] == "export_json"
         assert tp["entry_criteria"] == "Code complete"
 
     def test_diagram_format(self, populated_project):
@@ -141,6 +187,18 @@ class TestExportServiceMarkdown:
         result = ExportService.export_markdown(project_id)
         assert result is not None
         assert f"# {project.name}" in result
+        assert "## Project Template" in result
+
+    def test_markdown_with_project_template(self, project):
+        ProjectService.update(project, template_key="aspnetcore_clean_architecture")
+        ProjectTemplateService.seed_project_template(project, "aspnetcore_clean_architecture")
+
+        result = ExportService.export_markdown(project.id)
+
+        assert "ASP.NET Core Clean Architecture" in result
+        assert "Starter Outputs" in result
+        assert "Clean Architecture Overview" in result
+        assert "## Folder Structures" in result
 
     def test_markdown_with_all_artifacts(self, populated_project):
         result = ExportService.export_markdown(populated_project)
@@ -156,6 +214,10 @@ class TestExportServiceMarkdown:
         assert "As a **developer**" in result
         assert "export designs" in result
         assert "- [ ] Export works" in result
+
+    def test_markdown_test_plan_tags(self, populated_project):
+        result = ExportService.export_markdown(populated_project)
+        assert "**Tags:** integration, e2e" in result
 
     def test_markdown_requirement_format(self, populated_project):
         result = ExportService.export_markdown(populated_project)

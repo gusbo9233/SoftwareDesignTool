@@ -59,6 +59,17 @@ class TraceabilityService:
         _app.supabase.table("requirement_test_links").delete().eq("id", link.id).execute()
 
     @staticmethod
+    def reassign_user_story_links(from_user_story_id, to_user_story_id):
+        if not from_user_story_id or not to_user_story_id or from_user_story_id == to_user_story_id:
+            return
+        (
+            _app.supabase.table("requirement_test_links")
+            .update({"user_story_id": to_user_story_id})
+            .eq("user_story_id", from_user_story_id)
+            .execute()
+        )
+
+    @staticmethod
     def get_traceability_map(project_id):
         from app.services.document_service import DocumentService
         acceptance_tests = DocumentService.get_all_for_project(project_id, doc_type="acceptance_test")

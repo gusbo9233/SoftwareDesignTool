@@ -1,5 +1,8 @@
 import pytest
 from app.services.project_service import ProjectService, ProjectServiceUnavailableError
+from app.services.document_service import DocumentService
+from app.services.diagram_service import DiagramService
+from app.services.project_template_service import ProjectTemplateService
 
 
 class TestProjectService:
@@ -9,6 +12,7 @@ class TestProjectService:
             assert p.id is not None
             assert p.name == "Test"
             assert p.description == "A test project"
+            assert p.template_key == "generic"
         finally:
             ProjectService.delete(p)
 
@@ -37,16 +41,55 @@ class TestProjectService:
             ProjectService.delete(p2)
 
     def test_update_project(self, project):
-        ProjectService.update(project, name="New Name", description="Updated")
+        ProjectService.update(
+            project,
+            name="New Name",
+            description="Updated",
+            template_key="aspnetcore_clean_architecture",
+        )
         refreshed = ProjectService.get(project.id)
         assert refreshed.name == "New Name"
         assert refreshed.description == "Updated"
+        assert refreshed.template_key == "aspnetcore_clean_architecture"
 
     def test_delete_project(self):
         p = ProjectService.create(name="To Delete")
         pid = p.id
         ProjectService.delete(p)
         assert ProjectService.get(pid) is None
+
+    def test_create_project_falls_back_when_template_key_column_missing(self, monkeypatch):
+        class FakeInsert:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def execute(self):
+                if "template_key" in self.payload:
+                    raise Exception("Could not find the 'template_key' column of 'projects' in the schema cache")
+                return type("Response", (), {
+                    "data": [{
+                        "id": "fallback-project",
+                        "name": self.payload["name"],
+                        "description": self.payload["description"],
+                    }]
+                })()
+
+        class FakeTable:
+            def insert(self, payload):
+                return FakeInsert(payload)
+
+        class FakeSupabase:
+            def table(self, name):
+                assert name == "projects"
+                return FakeTable()
+
+        monkeypatch.setattr("app.services.project_service._app.supabase", FakeSupabase())
+
+        project = ProjectService.create(name="Fallback", description="Created without template_key")
+
+        assert project.id == "fallback-project"
+        assert project.name == "Fallback"
+        assert project.template_key == "generic"
 
 
 class TestProjectRoutes:
@@ -74,6 +117,80 @@ class TestProjectRoutes:
             if p.name == "Created":
                 ProjectService.delete(p)
                 break
+
+    def test_create_project_post_with_aspnet_template_seeds_artifacts(self, client):
+        response = client.post(
+            "/projects/new",
+            data={
+                "name": "Clean API",
+                "description": "Seed ASP.NET Core clean architecture",
+                "template_key": "aspnetcore_clean_architecture",
+            },
+            follow_redirects=True,
+        )
+
+        assert response.status_code == 200
+        assert b"ASP.NET Core Clean Architecture" in response.data
+        assert b"Starter Blueprint" in response.data
+
+        projects = ProjectService.get_all()
+        created = next(p for p in projects if p.name == "Clean API")
+        try:
+            documents = DocumentService.get_all_for_project(created.id)
+            diagrams = DiagramService.get_all_for_project(created.id)
+            assert any(doc.type == "tech_stack" for doc in documents)
+            assert any(doc.type == "project_plan" for doc in documents)
+            assert any(doc.type == "adr" for doc in documents)
+            assert any(doc.type == "folder_structure" for doc in documents)
+            assert any(diagram.name == "Clean Architecture Overview" for diagram in diagrams)
+        finally:
+            ProjectService.delete(created)
+
+    def test_create_project_post_with_mvc_template_seeds_artifacts(self, client):
+        response = client.post(
+            "/projects/new",
+            data={
+                "name": "MVC App",
+                "description": "Seed MVC architecture",
+                "template_key": "mvc",
+            },
+            follow_redirects=True,
+        )
+
+        assert response.status_code == 200
+        assert b"Model View Controller" in response.data
+        assert b"Starter Blueprint" in response.data
+
+        projects = ProjectService.get_all()
+        created = next(p for p in projects if p.name == "MVC App")
+        try:
+            documents = DocumentService.get_all_for_project(created.id)
+            diagrams = DiagramService.get_all_for_project(created.id)
+            assert any(doc.type == "tech_stack" for doc in documents)
+            assert any(doc.type == "project_plan" for doc in documents)
+            assert any(doc.type == "adr" for doc in documents)
+            assert any(doc.type == "folder_structure" for doc in documents)
+            assert any(diagram.name == "MVC Overview" for diagram in diagrams)
+        finally:
+            ProjectService.delete(created)
+
+    def test_existing_aspnet_template_project_auto_backfills_folder_structure(self, client):
+        project = ProjectService.create(name="Legacy Clean", template_key="aspnetcore_clean_architecture")
+        try:
+            DocumentService.create(
+                project_id=project.id,
+                doc_type="tech_stack",
+                data=ProjectTemplateService._tech_stack("aspnetcore_clean_architecture"),
+            )
+
+            response = client.get(f"/projects/{project.id}/documents", follow_redirects=True)
+
+            assert response.status_code == 200
+            documents = DocumentService.get_all_for_project(project.id)
+            assert any(doc.type == "folder_structure" for doc in documents)
+            assert b"Create Folder Structure" not in response.data
+        finally:
+            ProjectService.delete(project)
 
     def test_create_project_empty_name(self, client):
         response = client.post(

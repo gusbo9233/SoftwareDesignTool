@@ -1,0 +1,360 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+{% set designed_items = data.get('items', []) %}
+{% set repo_items = github_items or [] %}
+
+{% block title %}Folder Structure - {{ project.name }}{% endblock %}
+
+{% block project_content %}
+<style>
+    .folder-tree-line {
+        position: absolute;
+        left: 11px;
+        top: -10px;
+        bottom: -10px;
+        width: 1px;
+        background: rgba(148, 163, 184, 0.22);
+    }
+
+    .folder-tree-actions {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease;
+    }
+
+    .folder-tree-row:hover .folder-tree-actions,
+    .folder-tree-row:focus-within .folder-tree-actions {
+        opacity: 1;
+        pointer-events: auto;
+    }
+</style>
+
+<div class="space-y-6">
+    <div>
+        <div>
+            <span class="font-label text-[10px] uppercase tracking-widest text-primary mb-1.5 block">Folder Structure</span>
+            <h1 class="text-3xl font-extrabold tracking-tighter text-on-surface">{{ data.get('title', 'Folder Structure') }}</h1>
+            <p class="text-sm text-on-surface-variant mt-2 max-w-2xl">
+                {{ data.get('root_name', project.name) or project.name }}
+                {% if project_template.key != "generic" %}
+                · {{ project_template.label }}
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+        <a href="{{ url_for('documents.detail', project_id=project.id, id=document.id, view='designed') }}"
+           class="inline-flex items-center gap-2 px-3 py-2 rounded-md text-xs font-semibold font-label transition-colors {{ 'bg-slate-900 text-white' if current_view == 'designed' else 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' }}">
+            <span class="material-symbols-outlined text-sm">account_tree</span>
+            Designed
+        </a>
+        <a href="{{ url_for('documents.detail', project_id=project.id, id=document.id, view='github') }}"
+           class="inline-flex items-center gap-2 px-3 py-2 rounded-md text-xs font-semibold font-label transition-colors {{ 'bg-slate-900 text-white' if current_view == 'github' else 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' }}">
+            <span class="material-symbols-outlined text-sm">deployed_code</span>
+            GitHub
+        </a>
+        {% if git_connection %}
+        <span class="text-xs text-slate-500">{{ git_connection.repo_owner }}/{{ git_connection.repo_name }} · {{ git_connection.default_branch }}</span>
+        {% endif %}
+    </div>
+
+    <section class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        <div class="px-5 py-4 border-b border-slate-200 bg-slate-50/80">
+            <div class="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                    <div class="text-sm font-semibold text-slate-900">{{ data.get('root_name', project.name) or project.name }}</div>
+                    <div class="text-xs text-slate-500 mt-1">
+                        {{ 'GitHub Repository Structure' if current_view == 'github' else data.get('title', 'Folder Structure') }}
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button"
+                            onclick="expandAllFolders()"
+                            class="inline-flex items-center gap-1.5 bg-white text-slate-600 border border-slate-200 px-2.5 py-1.5 rounded-md text-[10px] font-label uppercase tracking-widest hover:bg-slate-100 transition-colors">
+                        <span class="material-symbols-outlined text-sm">unfold_more</span>
+                        Expand
+                    </button>
+                    <button type="button"
+                            onclick="collapseAllFolders()"
+                            class="inline-flex items-center gap-1.5 bg-white text-slate-600 border border-slate-200 px-2.5 py-1.5 rounded-md text-[10px] font-label uppercase tracking-widest hover:bg-slate-100 transition-colors">
+                        <span class="material-symbols-outlined text-sm">unfold_less</span>
+                        Collapse
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {% if current_view == 'github' %}
+        <div class="grid lg:grid-cols-[minmax(0,1fr)_26rem] min-h-[560px]">
+            <div class="border-r border-slate-200">
+                <div class="px-4 py-3 border-b border-slate-100 bg-white">
+                    <div class="flex items-center gap-3">
+                        <span class="material-symbols-outlined text-slate-400 text-[18px]">expand_more</span>
+                        <span class="material-symbols-outlined text-primary">folder</span>
+                        <span class="text-sm font-semibold text-slate-900">
+                            {% if git_connection %}
+                            {{ git_connection.repo_name }}
+                            {% else %}
+                            {{ data.get('root_name', project.name) or project.name }}
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                {% if github_error %}
+                <div class="mx-4 mt-4 px-4 py-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-900">
+                    {{ github_error }}
+                    {% if not git_connection %}
+                    <a href="{{ url_for('github.settings', project_id=project.id) }}" class="font-semibold underline underline-offset-2">Connect repository</a>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <div id="structure-preview" class="bg-white py-2 min-h-[560px]"></div>
+            </div>
+
+            <aside class="bg-slate-50/70 min-h-[560px]">
+                <div class="px-4 py-3 border-b border-slate-200 bg-slate-50">
+                    <div class="text-xs uppercase tracking-widest font-semibold text-slate-500">File Viewer</div>
+                    {% if github_file %}
+                    <div class="mt-1 text-sm font-semibold text-slate-900">{{ github_file.name }}</div>
+                    <div class="mt-1 text-xs text-slate-500">{{ github_file.path }}</div>
+                    {% else %}
+                    <div class="mt-1 text-sm font-semibold text-slate-900">Select a file</div>
+                    <div class="mt-1 text-xs text-slate-500">Choose a file from the repository tree to read its contents.</div>
+                    {% endif %}
+                </div>
+
+                {% if github_file %}
+                <div class="px-4 py-3 border-b border-slate-200 text-xs text-slate-500 flex items-center justify-between gap-3">
+                    <span>{% if github_file.size is not none %}{{ github_file.size }} bytes{% endif %}</span>
+                    {% if github_file.html_url %}
+                    <a href="{{ github_file.html_url }}" target="_blank" rel="noopener noreferrer" class="font-semibold text-primary hover:underline">Open on GitHub</a>
+                    {% endif %}
+                </div>
+                <div class="p-4 overflow-auto max-h-[calc(100vh-24rem)]">
+                    <pre class="text-xs leading-6 text-slate-800 whitespace-pre-wrap break-words font-mono bg-white border border-slate-200 rounded-lg p-4">{{ github_file.content }}</pre>
+                </div>
+                {% else %}
+                <div class="p-6 text-sm text-slate-500">
+                    The GitHub view is read-only. Click any file in the tree to inspect its contents here.
+                </div>
+                {% endif %}
+            </aside>
+        </div>
+        {% else %}
+        <div class="px-4 py-3 border-b border-slate-100 bg-white">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-slate-400 text-[18px]">expand_more</span>
+                <span class="material-symbols-outlined text-primary">folder</span>
+                <span class="text-sm font-semibold text-slate-900">{{ data.get('root_name', project.name) or project.name }}</span>
+            </div>
+        </div>
+
+        <div id="structure-preview" class="bg-white py-2 min-h-[560px]"></div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const folderStructureItems = {{ (repo_items if current_view == 'github' else designed_items) | tojson }};
+const folderStructureView = {{ current_view | tojson }};
+const githubSelectedPath = {{ github_selected_path | tojson }};
+const githubFileBaseUrl = {{ url_for('documents.detail', project_id=project.id, id=document.id, view='github') | tojson }};
+
+function buildTree(items) {
+    const root = { children: [] };
+    const nodeMap = new Map();
+
+    function ensureFolder(path) {
+        if (nodeMap.has(path)) return nodeMap.get(path);
+        const trimmed = path.replace(/\/+$/, '');
+        const segments = trimmed.split('/').filter(Boolean);
+        const name = segments[segments.length - 1] || trimmed;
+        const parentPath = segments.length > 1 ? segments.slice(0, -1).join('/') + '/' : '';
+        const node = { path: trimmed + '/', name: name + '/', kind: 'folder', fixed: false, children: [], auto: true };
+        nodeMap.set(node.path, node);
+        const parent = parentPath ? ensureFolder(parentPath) : root;
+        if (!parent.children.find((child) => child.path === node.path)) {
+            parent.children.push(node);
+        }
+        return node;
+    }
+
+    items.forEach((item) => {
+        const normalized = item.kind === 'folder'
+            ? item.path.replace(/^\/+/, '').replace(/\/?$/, '/')
+            : item.path.replace(/^\/+/, '');
+        const segments = normalized.split('/').filter(Boolean);
+
+        if (segments.length > 1) {
+            let current = '';
+            segments.slice(0, -1).forEach((segment) => {
+                current += `${segment}/`;
+                ensureFolder(current);
+            });
+        }
+
+        const name = segments[segments.length - 1] || normalized;
+        const parentPath = segments.length > 1 ? segments.slice(0, -1).join('/') + '/' : '';
+        const parent = parentPath ? ensureFolder(parentPath) : root;
+        const key = normalized;
+        let node = nodeMap.get(key);
+        if (!node) {
+            node = {
+                path: normalized,
+                name: item.kind === 'folder' ? `${name}/` : name,
+                kind: item.kind,
+                fixed: !!item.is_fixed,
+                children: [],
+                auto: false,
+            };
+            nodeMap.set(key, node);
+            parent.children.push(node);
+        } else {
+            node.kind = item.kind;
+            node.fixed = !!item.is_fixed;
+            node.auto = false;
+            node.name = item.kind === 'folder' ? `${name}/` : name;
+        }
+    });
+
+    sortTree(root);
+    return root;
+}
+
+function sortTree(node) {
+    node.children.sort((a, b) => {
+        if (a.kind === 'folder' && b.kind !== 'folder') return -1;
+        if (a.kind !== 'folder' && b.kind === 'folder') return 1;
+        return a.name.localeCompare(b.name);
+    });
+    node.children.forEach(sortTree);
+}
+
+function renderTreeNode(node, depth) {
+    const hasChildren = node.kind === 'folder' && node.children.length > 0;
+    const icon = node.kind === 'file' ? 'description' : (node.kind === 'solution' ? 'workspaces' : 'folder');
+    const iconClass = node.kind === 'file' ? 'text-slate-400' : 'text-primary';
+    const rowTone = node.fixed ? 'bg-slate-50/90' : 'bg-white';
+    const isSelected = folderStructureView === 'github' && node.kind === 'file' && node.path === githubSelectedPath;
+    const toggle = node.kind === 'folder'
+        ? `<button type="button" class="tree-toggle inline-flex items-center justify-center w-5 h-5 rounded-sm hover:bg-slate-200/70 text-slate-500" data-path="${escapeHtml(node.path)}">
+                <span class="material-symbols-outlined text-[16px]">${hasChildren ? 'expand_more' : 'chevron_right'}</span>
+           </button>`
+        : `<span class="inline-block w-5 h-5"></span>`;
+    const addButtons = folderStructureView === 'designed' && node.kind === 'folder'
+        ? `<form method="POST" action="{{ url_for('documents.add_folder_structure_item', project_id=project.id, id=document.id) }}" class="inline">
+                <input type="hidden" name="parent_path" value="${escapeAttribute(node.path)}">
+                <input type="hidden" name="item_kind" value="folder">
+                <button type="submit" class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-label uppercase tracking-widest bg-slate-100 text-slate-700 hover:bg-slate-200">
+                    <span class="material-symbols-outlined text-[14px]">create_new_folder</span>
+                    Add Folder
+                </button>
+           </form>
+           <form method="POST" action="{{ url_for('documents.add_folder_structure_item', project_id=project.id, id=document.id) }}" class="inline">
+                <input type="hidden" name="parent_path" value="${escapeAttribute(node.path)}">
+                <input type="hidden" name="item_kind" value="file">
+                <button type="submit" class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-label uppercase tracking-widest bg-slate-100 text-slate-700 hover:bg-slate-200">
+                    <span class="material-symbols-outlined text-[14px]">note_add</span>
+                    Add File
+                </button>
+           </form>`
+        : '';
+    const deleteButton = folderStructureView === 'designed' && !node.fixed
+        ? `<form method="POST" action="{{ url_for('documents.delete_folder_structure_item', project_id=project.id, id=document.id) }}" class="inline">
+                <input type="hidden" name="target_path" value="${escapeAttribute(node.path)}">
+                <button type="submit" class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-label uppercase tracking-widest bg-rose-50 text-rose-600 hover:bg-rose-100">
+                    <span class="material-symbols-outlined text-[14px]">delete</span>
+                    Delete
+                </button>
+           </form>`
+        : '';
+    const childrenMarkup = hasChildren
+        ? `<div class="tree-children" data-parent="${escapeHtml(node.path)}">${node.children.map((child) => renderTreeNode(child, depth + 1)).join('')}</div>`
+        : '';
+    const nodeLabel = folderStructureView === 'github' && node.kind === 'file'
+        ? `<a href="${githubFileUrl(node.path)}" class="text-sm ${isSelected ? 'font-semibold text-primary' : 'text-slate-700 hover:text-primary'}">${escapeHtml(node.name)}</a>`
+        : `<span class="text-sm ${node.fixed ? 'font-medium text-slate-900' : 'text-slate-700'}">${escapeHtml(node.name)}</span>`;
+
+    const guideLine = depth > 0 ? '<div class="folder-tree-line"></div>' : '';
+    return `<div class="tree-node" data-node="${escapeHtml(node.path)}">
+        <div class="folder-tree-row group relative flex items-center px-4 py-2.5 hover:bg-slate-50 transition-colors ${isSelected ? 'bg-blue-50' : rowTone}">
+            <div class="flex items-center gap-3 relative" style="margin-left:${depth * 24}px; width: calc(100% - ${depth * 24}px);">
+                ${guideLine}
+                ${toggle}
+                <span class="material-symbols-outlined text-[18px] ${iconClass}">${icon}</span>
+                ${nodeLabel}
+                <div class="folder-tree-actions ml-auto flex items-center gap-2 ${folderStructureView === 'github' ? 'hidden' : ''}">
+                    ${addButtons}
+                    ${deleteButton}
+                </div>
+            </div>
+        </div>
+        ${childrenMarkup}
+    </div>`;
+}
+
+function renderStructurePreview() {
+    const preview = document.getElementById('structure-preview');
+    const tree = buildTree(folderStructureItems);
+    preview.innerHTML = tree.children.map((node) => renderTreeNode(node, 0)).join('');
+    bindTreeButtons();
+}
+
+function bindTreeButtons() {
+    document.querySelectorAll('.tree-toggle').forEach((button) => {
+        button.addEventListener('click', () => toggleFolder(button.dataset.path));
+    });
+}
+
+function toggleFolder(path) {
+    const children = document.querySelector(`.tree-children[data-parent="${cssEscape(path)}"]`);
+    const icon = document.querySelector(`.tree-toggle[data-path="${cssEscape(path)}"] .material-symbols-outlined`);
+    if (!children || !icon) return;
+    const isHidden = children.classList.toggle('hidden');
+    icon.textContent = isHidden ? 'chevron_right' : 'expand_more';
+}
+
+function expandAllFolders() {
+    document.querySelectorAll('.tree-children').forEach((node) => node.classList.remove('hidden'));
+    document.querySelectorAll('.tree-toggle .material-symbols-outlined').forEach((icon) => {
+        icon.textContent = 'expand_more';
+    });
+}
+
+function collapseAllFolders() {
+    document.querySelectorAll('.tree-children').forEach((node) => node.classList.add('hidden'));
+    document.querySelectorAll('.tree-toggle .material-symbols-outlined').forEach((icon) => {
+        icon.textContent = 'chevron_right';
+    });
+}
+
+function cssEscape(value) {
+    if (window.CSS && window.CSS.escape) return window.CSS.escape(value);
+    return value.replace(/["\\]/g, '\\$&');
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function escapeAttribute(value) {
+    return escapeHtml(value);
+}
+
+function githubFileUrl(path) {
+    return `${githubFileBaseUrl}&path=${encodeURIComponent(path)}`;
+}
+
+document.addEventListener('DOMContentLoaded', renderStructurePreview);
+</script>
+{% endblock %}

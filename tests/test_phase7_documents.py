@@ -1,8 +1,11 @@
 """Tests for Phase 7 document types: ADR, TechStack, NFR, RiskRegister,
 DomainModel, AcceptanceTest, ExternalResource, ResearchDocument."""
+from unittest.mock import patch, MagicMock
+
 import pytest
 from pydantic import ValidationError
 from app.services.document_service import DocumentService
+from app.services.git_connection_service import GitConnectionService
 from app.schemas.document import (
     ADRData,
     TechStackData,
@@ -12,6 +15,7 @@ from app.schemas.document import (
     AcceptanceTestData,
     ExternalResourceData,
     ResearchDocumentData,
+    FolderStructureData,
 )
 
 
@@ -91,6 +95,15 @@ class TestPhase7DocumentService:
         )
         assert doc.type == "research"
         assert doc.data["tags"] == "auth, security"
+
+    def test_create_folder_structure(self, project_id):
+        doc = DocumentService.create(
+            project_id=project_id,
+            doc_type="folder_structure",
+            data={"title": "Solution Layout", "items": [{"path": "src/App.Api/", "kind": "folder"}]},
+        )
+        assert doc.type == "folder_structure"
+        assert doc.data["items"][0]["path"] == "src/App.Api/"
 
 
 # ---------------------------------------------------------------------------
@@ -275,6 +288,224 @@ class TestPhase7DocumentRoutes:
         assert response.status_code == 200
         assert b"required" in response.data
 
+    def test_create_folder_structure_post(self, client, project_id):
+        response = client.post(
+            f"/projects/{project_id}/documents/new/folder_structure",
+            data={
+                "title": "Solution Layout",
+                "root_name": "MyApp.sln",
+                "notes": "Core plus feature folders",
+                "item_path": ["src/MyApp.Api/", "src/MyApp.SharedKernel/"],
+                "item_kind": ["folder", "folder"],
+                "item_purpose": ["API host", "Shared contracts"],
+                "item_is_fixed": ["false", "false"],
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"Solution Layout" in response.data
+        assert b"MyApp.SharedKernel" in response.data
+
+    def test_create_folder_structure_missing_title(self, client, project_id):
+        response = client.post(
+            f"/projects/{project_id}/documents/new/folder_structure",
+            data={"title": "", "item_path": ["src/App.Api/"], "item_kind": ["folder"], "item_purpose": ["API"], "item_is_fixed": ["false"]},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"required" in response.data
+
+    def test_add_folder_structure_child_item(self, client, project_id):
+        doc = DocumentService.create(
+            project_id=project_id,
+            doc_type="folder_structure",
+            data={
+                "title": "Solution Layout",
+                "items": [{"path": "src/", "kind": "folder", "is_fixed": False}],
+            },
+        )
+
+        response = client.post(
+            f"/projects/{project_id}/documents/{doc.id}/folder-structure/add",
+            data={"parent_path": "src/", "item_kind": "file"},
+            follow_redirects=True,
+        )
+
+        assert response.status_code == 200
+        updated = DocumentService.get(doc.id)
+        assert any(item["path"] == "src/NewFile" for item in updated.data["items"])
+
+    def test_add_folder_structure_child_item_preserves_existing_fixed_items(self, client, project_id):
+        doc = DocumentService.create(
+            project_id=project_id,
+            doc_type="folder_structure",
+            data={
+                "title": "Solution Layout",
+                "items": [
+                    {"path": ".github/", "kind": "folder", "is_fixed": True},
+                    {"path": "src/", "kind": "folder", "is_fixed": True},
+                ],
+            },
+        )
+
+        response = client.post(
+            f"/projects/{project_id}/documents/{doc.id}/folder-structure/add",
+            data={"parent_path": ".github/", "item_kind": "file"},
+            follow_redirects=True,
+        )
+
+        assert response.status_code == 200
+        updated = DocumentService.get(doc.id)
+        paths = {item["path"] for item in updated.data["items"]}
+        assert ".github/" in paths
+        assert "src/" in paths
+        assert ".github/NewFile" in paths
+
+    def test_delete_folder_structure_custom_item(self, client, project_id):
+        doc = DocumentService.create(
+            project_id=project_id,
+            doc_type="folder_structure",
+            data={
+                "title": "Solution Layout",
+                "items": [
+                    {"path": ".github/", "kind": "folder", "is_fixed": True},
+                    {"path": "src/", "kind": "folder", "is_fixed": False},
+                    {"path": "src/NewFile", "kind": "file", "is_fixed": False},
+                ],
+            },
+        )
+
+        response = client.post(
+            f"/projects/{project_id}/documents/{doc.id}/folder-structure/delete-item",
+            data={"target_path": "src/NewFile"},
+            follow_redirects=True,
+        )
+
+        assert response.status_code == 200
+        updated = DocumentService.get(doc.id)
+        paths = {item["path"] for item in updated.data["items"]}
+        assert ".github/" in paths
+        assert "src/" in paths
+        assert "src/NewFile" not in paths
+
+    def test_delete_folder_structure_custom_folder_removes_nested_custom_items(self, client, project_id):
+        doc = DocumentService.create(
+            project_id=project_id,
+            doc_type="folder_structure",
+            data={
+                "title": "Solution Layout",
+                "items": [
+                    {"path": ".github/", "kind": "folder", "is_fixed": True},
+                    {"path": "src/", "kind": "folder", "is_fixed": False},
+                    {"path": "src/Child/", "kind": "folder", "is_fixed": False},
+                    {"path": "src/Child/NestedFile", "kind": "file", "is_fixed": False},
+                ],
+            },
+        )
+
+        response = client.post(
+            f"/projects/{project_id}/documents/{doc.id}/folder-structure/delete-item",
+            data={"target_path": "src/"},
+            follow_redirects=True,
+        )
+
+        assert response.status_code == 200
+        updated = DocumentService.get(doc.id)
+        paths = {item["path"] for item in updated.data["items"]}
+        assert ".github/" in paths
+        assert "src/" not in paths
+        assert "src/Child/" not in paths
+        assert "src/Child/NestedFile" not in paths
+
+    def test_folder_structure_github_view_requires_connection(self, client, project_id):
+        doc = DocumentService.create(
+            project_id=project_id,
+            doc_type="folder_structure",
+            data={"title": "Solution Layout", "items": []},
+        )
+
+        response = client.get(
+            f"/projects/{project_id}/documents/{doc.id}?view=github",
+            follow_redirects=True,
+        )
+
+        assert response.status_code == 200
+        assert b"Connect a GitHub repository" in response.data
+
+    @patch("app.routes.documents.GitHubService")
+    def test_folder_structure_github_view_fetches_repo_tree(self, mock_gh_class, client, project_id):
+        doc = DocumentService.create(
+            project_id=project_id,
+            doc_type="folder_structure",
+            data={"title": "Solution Layout", "items": []},
+        )
+        GitConnectionService.create(
+            project_id=project_id,
+            repo_owner="octocat",
+            repo_name="hello-world",
+            auth_token_encrypted="ghp_test",
+        )
+
+        mock_gh = MagicMock()
+        mock_gh.get_tree.return_value = {
+            "tree": [
+                {"path": "src", "type": "tree"},
+                {"path": "src/Program.cs", "type": "blob"},
+            ]
+        }
+        mock_gh_class.return_value = mock_gh
+
+        response = client.get(
+            f"/projects/{project_id}/documents/{doc.id}?view=github",
+            follow_redirects=True,
+        )
+
+        assert response.status_code == 200
+        assert b"GitHub" in response.data
+        assert b"hello-world" in response.data
+        assert b"src/" in response.data
+        assert b"Program.cs" in response.data
+
+    @patch("app.routes.documents.GitHubService")
+    def test_folder_structure_github_view_reads_selected_file(self, mock_gh_class, client, project_id):
+        doc = DocumentService.create(
+            project_id=project_id,
+            doc_type="folder_structure",
+            data={"title": "Solution Layout", "items": []},
+        )
+        GitConnectionService.create(
+            project_id=project_id,
+            repo_owner="octocat",
+            repo_name="hello-world",
+            auth_token_encrypted="ghp_test",
+        )
+
+        mock_gh = MagicMock()
+        mock_gh.get_tree.return_value = {
+            "tree": [
+                {"path": "src", "type": "tree"},
+                {"path": "src/Program.cs", "type": "blob"},
+            ]
+        }
+        mock_gh.get_file_content.return_value = {
+            "name": "Program.cs",
+            "path": "src/Program.cs",
+            "size": 120,
+            "content": "var builder = WebApplication.CreateBuilder(args);",
+            "html_url": "https://github.com/octocat/hello-world/blob/main/src/Program.cs",
+        }
+        mock_gh_class.return_value = mock_gh
+
+        response = client.get(
+            f"/projects/{project_id}/documents/{doc.id}?view=github&path=src/Program.cs",
+            follow_redirects=True,
+        )
+
+        assert response.status_code == 200
+        assert b"File Viewer" in response.data
+        assert b"Program.cs" in response.data
+        assert b"WebApplication.CreateBuilder" in response.data
+
 
 # ---------------------------------------------------------------------------
 # Pydantic schema tests
@@ -350,3 +581,11 @@ class TestPhase7Schemas:
     def test_research_missing_title(self):
         with pytest.raises(ValidationError):
             ResearchDocumentData(title="")
+
+    def test_folder_structure_valid(self):
+        data = FolderStructureData(title="Solution Layout", items=[{"path": "src/App.Api/"}])
+        assert data.items[0].kind == "folder"
+
+    def test_folder_structure_missing_title(self):
+        with pytest.raises(ValidationError):
+            FolderStructureData(title="")

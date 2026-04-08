@@ -29,6 +29,7 @@ def _project(d):
     for field in ("created_at", "updated_at"):
         if field in d:
             d[field] = _parse_dt(d[field])
+    d.setdefault("template_key", "generic")
     d.setdefault("documents", [])
     d.setdefault("diagrams", [])
     d.setdefault("api_endpoints", [])
@@ -64,6 +65,18 @@ def _execute(builder, operation):
 
 class ProjectService:
     @staticmethod
+    def _is_missing_column_error(exc, column_name):
+        current = exc
+        while current is not None:
+            message = str(current).lower()
+            if column_name.lower() in message and (
+                "column" in message or "schema cache" in message or "could not find" in message
+            ):
+                return True
+            current = getattr(current, "__cause__", None)
+        return False
+
+    @staticmethod
     def get_all():
         res = _execute(
             _app.supabase.table("projects").select("*").order("updated_at", desc=True),
@@ -80,25 +93,50 @@ class ProjectService:
         return _project(res.data) if res.data else None
 
     @staticmethod
-    def create(name, description=""):
-        res = _execute(
-            _app.supabase.table("projects").insert({"name": name, "description": description}),
-            "create the project",
-        )
+    def create(name, description="", template_key="generic"):
+        payload = {"name": name, "description": description, "template_key": template_key}
+        try:
+            res = _execute(
+                _app.supabase.table("projects").insert(payload),
+                "create the project",
+            )
+        except ProjectServiceUnavailableError as exc:
+            if ProjectService._is_missing_column_error(exc, "template_key"):
+                res = _execute(
+                    _app.supabase.table("projects").insert({"name": name, "description": description}),
+                    "create the project",
+                )
+            else:
+                raise
         return _project(res.data[0])
 
     @staticmethod
-    def update(project, name=None, description=None):
+    def update(project, name=None, description=None, template_key=None):
         updates = {}
         if name is not None:
             updates["name"] = name
         if description is not None:
             updates["description"] = description
+        if template_key is not None:
+            updates["template_key"] = template_key
         if updates:
-            res = _execute(
-                _app.supabase.table("projects").update(updates).eq("id", project.id),
-                "update the project",
-            )
+            try:
+                res = _execute(
+                    _app.supabase.table("projects").update(updates).eq("id", project.id),
+                    "update the project",
+                )
+            except ProjectServiceUnavailableError as exc:
+                if "template_key" in updates and ProjectService._is_missing_column_error(exc, "template_key"):
+                    fallback_updates = dict(updates)
+                    fallback_updates.pop("template_key", None)
+                    if not fallback_updates:
+                        return project
+                    res = _execute(
+                        _app.supabase.table("projects").update(fallback_updates).eq("id", project.id),
+                        "update the project",
+                    )
+                else:
+                    raise
             if res.data:
                 normalized = _project(res.data[0])
                 for k, v in vars(normalized).items():

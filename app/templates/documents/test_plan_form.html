@@ -14,10 +14,23 @@
 {% block project_content %}
 <h1>{{ "Edit" if document else "New" }} Test Plan</h1>
 
+{% set selected_tags = data.get('tags', []) %}
+
 <form method="POST" class="form form-wide">
     <div class="form-group">
         <label for="test_scope">Test Scope</label>
         <textarea id="test_scope" name="test_scope" rows="3" placeholder="What is being tested" required>{{ data.get('test_scope', '') }}</textarea>
+    </div>
+    <div class="form-group">
+        <label>Tags</label>
+        <div class="form-row" style="gap: 1rem; align-items: center; flex-wrap: wrap;">
+            <label><input type="checkbox" name="tags" value="unit" {{ 'checked' if 'unit' in selected_tags }}> Unit</label>
+            <label><input type="checkbox" name="tags" value="integration" {{ 'checked' if 'integration' in selected_tags }}> Integration</label>
+            <label><input type="checkbox" name="tags" value="e2e" {{ 'checked' if 'e2e' in selected_tags }}> E2E</label>
+            <label><input type="checkbox" name="tags" value="manual" {{ 'checked' if 'manual' in selected_tags }}> Manual</label>
+            <label><input type="checkbox" name="tags" value="performance" {{ 'checked' if 'performance' in selected_tags }}> Performance</label>
+        </div>
+        <input type="text" id="custom_tags" name="custom_tags" value="{{ data.get('custom_tags', '') }}" placeholder="Additional tags, comma separated" style="margin-top: 0.75rem;">
     </div>
     <div class="form-group">
         <label for="test_strategy">Test Strategy</label>
@@ -28,11 +41,17 @@
         <legend>Test Cases</legend>
         <table class="data-table" id="cases-table">
             <thead>
-                <tr><th>Description</th><th>Steps</th><th>Expected Result</th><th>Status</th><th></th></tr>
+                <tr><th>Test Name</th><th>Description</th><th>Steps</th><th>Expected Result</th><th>Status</th><th></th></tr>
             </thead>
             <tbody>
                 {% for tc in data.get('test_cases', [{}]) %}
                 <tr>
+                    <td>
+                        <input type="text" name="case_test_name" value="{{ tc.get('test_name', '') }}" placeholder="e.g. login_valid_credentials" required>
+                        {% if tc.get('test_uid') %}
+                        <small class="form-hint"><code>{{ tc.get('test_uid', '') }}</code></small>
+                        {% endif %}
+                    </td>
                     <td><input type="text" name="case_description" value="{{ tc.get('description', '') }}"></td>
                     <td><input type="text" name="case_steps" value="{{ tc.get('steps', '') }}"></td>
                     <td><input type="text" name="case_expected" value="{{ tc.get('expected_result', '') }}"></td>
@@ -64,9 +83,6 @@
         <label for="environment">Environment</label>
         <textarea id="environment" name="environment" rows="2" placeholder="Required setup and dependencies">{{ data.get('environment', '') }}</textarea>
     </div>
-
-    {% include "documents/_test_id_fields.html" %}
-
     <div class="form-actions">
         <button type="submit" class="btn btn-primary">{{ "Update" if document else "Create" }}</button>
         <a href="{{ url_for('documents.index', project_id=project.id) }}" class="btn">Cancel</a>
@@ -77,7 +93,8 @@
 function addTestCase() {
     const tbody = document.querySelector('#cases-table tbody');
     const tr = document.createElement('tr');
-    tr.innerHTML = '<td><input type="text" name="case_description"></td>' +
+    tr.innerHTML = '<td><input type="text" name="case_test_name" placeholder="e.g. login_valid_credentials" required></td>' +
+        '<td><input type="text" name="case_description"></td>' +
         '<td><input type="text" name="case_steps"></td>' +
         '<td><input type="text" name="case_expected"></td>' +
         '<td><select name="case_status"><option value="not_run">Not Run</option><option value="passed">Passed</option><option value="failed">Failed</option><option value="blocked">Blocked</option></select></td>' +

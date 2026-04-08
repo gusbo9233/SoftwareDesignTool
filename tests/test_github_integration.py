@@ -1,11 +1,12 @@
 """Tests for the GitHub integration: services, JUnit parsing, routes."""
 import json
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
 import pytest
 
 from app.services.git_connection_service import GitConnectionService
-from app.services.test_result_service import TestResultService, parse_junit_xml
+from app.services.test_result_service import TestResultService, parse_junit_xml, parse_pytest_output
 from app.services.github_service import GitHubService, GitHubAPIError
 
 
@@ -72,6 +73,34 @@ class TestJUnitParsing:
         pass_case = next(c for c in cases if c["test_name"] == "test_pass_a")
         assert pass_case["failure_message"] is None
         assert pass_case["failure_output"] is None
+
+    def test_parse_pytest_verbose_output(self):
+        log_text = """
+collecting ... collected 5 items
+
+test_calculator.py::test_add PASSED                                      [ 20%]
+test_calculator.py::test_subtract PASSED                                 [ 40%]
+test_calculator.py::test_multiply PASSED                                 [ 60%]
+test_calculator.py::test_divide PASSED                                   [ 80%]
+test_calculator.py::test_divide_by_zero PASSED                           [100%]
+"""
+        summary, cases = parse_pytest_output(log_text)
+        assert summary["total_tests"] == 5
+        assert summary["passed"] == 5
+        assert summary["failed"] == 0
+        assert cases[0]["test_name"] == "test_add"
+        assert cases[-1]["test_name"] == "test_divide_by_zero"
+
+    def test_parse_pytest_verbose_output_with_github_timestamps(self):
+        log_text = """
+2026-04-08T08:23:35.4422025Z collecting ... collected 2 items
+2026-04-08T08:23:35.4431141Z test_calculator.py::test_add PASSED                                      [ 50%]
+2026-04-08T08:23:35.4437774Z test_calculator.py::test_subtract PASSED                                 [100%]
+"""
+        summary, cases = parse_pytest_output(log_text)
+        assert summary["total_tests"] == 2
+        assert summary["passed"] == 2
+        assert [c["test_name"] for c in cases] == ["test_add", "test_subtract"]
 
 
 # ---------------------------------------------------------------------------
@@ -255,6 +284,29 @@ class TestGitHubRoutes:
         resp = client.get(f"/projects/{project.id}/github")
         assert resp.status_code == 200
         assert b"octocat/hello-world" in resp.data
+
+    @patch("app.routes.github.GitHubService")
+    @patch("app.routes.github.GitConnectionService.get_for_project")
+    def test_dashboard_handles_string_last_synced_at(self, mock_get_connection, mock_gh_class, client, project):
+        mock_get_connection.return_value = SimpleNamespace(
+            id="conn-1",
+            project_id=project.id,
+            repo_owner="octocat",
+            repo_name="hello-world",
+            auth_token_encrypted="ghp_test",
+            default_branch="main",
+            last_synced_at="2026-04-08T09:22:39+00:00",
+        )
+
+        mock_gh = MagicMock()
+        mock_gh.list_commits.return_value = []
+        mock_gh.list_pulls.return_value = []
+        mock_gh_class.return_value = mock_gh
+
+        resp = client.get(f"/projects/{project.id}/github")
+        assert resp.status_code == 200
+        assert b"Last synced" in resp.data
+        assert b"2026-04-08 09:22" in resp.data
 
     def test_api_test_runs_empty(self, client, project):
         resp = client.get(f"/api/projects/{project.id}/github/test-runs")

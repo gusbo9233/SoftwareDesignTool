@@ -13,6 +13,12 @@
         {% if project.description %}
         <p class="text-on-surface-variant text-sm mt-2 max-w-xl leading-relaxed">{{ project.description }}</p>
         {% endif %}
+        {% if project_template and project_template.key != "generic" %}
+        <div class="mt-3 inline-flex items-center gap-2 rounded-sm bg-primary/10 text-primary border border-primary/20 px-3 py-1.5">
+            <span class="material-symbols-outlined text-sm">architecture</span>
+            <span class="font-label text-[11px] uppercase tracking-widest">{{ project_template.label }}</span>
+        </div>
+        {% endif %}
         <span class="font-label text-[10px] text-outline mt-2 block">
             Created {{ project.created_at[:10] if project.created_at is string else project.created_at.strftime('%Y-%m-%d') }}
             &nbsp;·&nbsp;
@@ -45,6 +51,37 @@
         </form>
     </div>
 </div>
+
+{% if project_template and project_template.key != "generic" %}
+<div class="bg-surface-container-low rounded-lg p-6 mb-8">
+    <div class="flex items-start justify-between gap-4 mb-4">
+        <div>
+            <span class="font-label text-[10px] uppercase tracking-widest text-primary mb-1.5 block">Starter Blueprint</span>
+            <h2 class="text-xl font-bold tracking-tight text-on-surface">{{ project_template.label }}</h2>
+            <p class="text-sm text-on-surface-variant mt-2 max-w-3xl leading-relaxed">{{ project_template.summary }}</p>
+        </div>
+    </div>
+    <p class="text-sm text-on-surface mb-4">{{ project_template.focus }}</p>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div>
+            <h3 class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Recommended Layers</h3>
+            <ul class="space-y-2 text-sm text-on-surface-variant">
+                {% for layer in project_template.layers %}
+                <li>• {{ layer }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div>
+            <h3 class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Seeded Outputs</h3>
+            <ul class="space-y-2 text-sm text-on-surface-variant">
+                {% for output in project_template.starter_outputs %}
+                <li>• {{ output }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- Section Label -->
 <h2 class="text-xs font-label font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 flex items-center gap-3">

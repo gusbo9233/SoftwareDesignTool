@@ -11,12 +11,13 @@
 {% endblock %}
 
 {% block project_content %}
+{% set stories = data.get('stories', []) %}
+
 <div class="page-header">
-    <h1>User Story</h1>
+    <h1>User Stories</h1>
     <div class="actions">
-        <a href="{{ url_for('documents.edit', project_id=project.id, id=document.id) }}" class="btn">Edit</a>
         <form method="POST" action="{{ url_for('documents.delete', project_id=project.id, id=document.id) }}" class="inline-form">
-            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this user story?')">Delete</button>
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this user story document?')">Delete</button>
         </form>
     </div>
 </div>
@@ -26,31 +27,46 @@
 </table>
 
 <div class="document-content">
-    <blockquote class="story-statement">
-        As a <strong>{{ data.get('user_type', '—') }}</strong>,
-        I want to <strong>{{ data.get('action', '—') }}</strong>
-        so that I can <strong>{{ data.get('benefit', '—') }}</strong>.
-    </blockquote>
-
-    <div class="detail-grid">
-        <div class="detail-item">
-            <span class="detail-label">Priority</span>
-            <span class="badge badge-{{ data.get('priority', 'medium') }}">{{ data.get('priority', 'medium') | capitalize }}</span>
-        </div>
-        <div class="detail-item">
-            <span class="detail-label">Status</span>
-            <span class="badge">{{ data.get('status', 'draft') | capitalize }}</span>
-        </div>
-    </div>
-
-    {% if data.get('acceptance_criteria') %}
-    <h3>Acceptance Criteria</h3>
-    <ul>
-        {% for criterion in data.acceptance_criteria %}
-        <li>{{ criterion }}</li>
+    {% if stories %}
+        {% for story in stories %}
+        <section class="story-card" style="margin-bottom: 1.5rem;">
+            <h3>Story {{ loop.index }}</h3>
+            <blockquote class="story-statement">
+                As a <strong>{{ story.get('user_type', '—') }}</strong>,
+                I want to <strong>{{ story.get('action', '—') }}</strong>
+                so that I can <strong>{{ story.get('benefit', '—') }}</strong>.
+            </blockquote>
+        </section>
         {% endfor %}
-    </ul>
+    {% else %}
+        <p class="empty-state">No user stories yet. Fill in the blanks below to add the first one.</p>
     {% endif %}
+
+    <section class="story-card">
+        <h3>Add Story</h3>
+        <form method="POST" action="{{ url_for('documents.add_user_story', project_id=project.id, id=document.id) }}" class="form">
+            <div class="form-row" style="align-items: end; gap: 0.75rem; flex-wrap: wrap;">
+                <div class="form-group" style="flex: 1 1 12rem; margin-bottom: 0;">
+                    <label for="user_type">As a</label>
+                    <input type="text" id="user_type" name="user_type" placeholder="learner" required>
+                </div>
+                <div class="form-group" style="flex: 1 1 16rem; margin-bottom: 0;">
+                    <label for="action">I want to</label>
+                    <input type="text" id="action" name="action" placeholder="practice vocabulary" required>
+                </div>
+                <div class="form-group" style="flex: 1 1 16rem; margin-bottom: 0;">
+                    <label for="benefit">So that I can</label>
+                    <input type="text" id="benefit" name="benefit" placeholder="learn a language" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <button type="submit" class="btn btn-primary">Add</button>
+                </div>
+            </div>
+            <div class="form-actions">
+                <small class="text-muted">As a [user], I want to [action] so that I can [benefit].</small>
+            </div>
+        </form>
+    </section>
 </div>
 
 {% if linked_tests is defined and linked_tests %}

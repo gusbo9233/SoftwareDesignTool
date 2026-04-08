@@ -7,6 +7,47 @@ from app.services.test_result_service import TestResultService
 from app.services.git_connection_service import GitConnectionService
 from app.services.screen_service import ScreenService
 from app.services.design_system_service import DesignSystemService
+from app.services.project_template_service import ProjectTemplateService
+
+
+def _normalize_user_stories(data):
+    data = data or {}
+    stories = []
+
+    for story in data.get("stories", []):
+        normalized_story = {
+            "user_type": (story.get("user_type") or "").strip(),
+            "action": (story.get("action") or "").strip(),
+            "benefit": (story.get("benefit") or "").strip(),
+            "priority": (story.get("priority") or "medium").strip() or "medium",
+            "status": (story.get("status") or "draft").strip() or "draft",
+            "acceptance_criteria": [
+                criterion.strip()
+                for criterion in (story.get("acceptance_criteria") or [])
+                if isinstance(criterion, str) and criterion.strip()
+            ],
+        }
+        if any(normalized_story[field] for field in ("user_type", "action", "benefit")):
+            stories.append(normalized_story)
+
+    if stories:
+        return stories
+
+    legacy_story = {
+        "user_type": (data.get("user_type") or "").strip(),
+        "action": (data.get("action") or "").strip(),
+        "benefit": (data.get("benefit") or "").strip(),
+        "priority": (data.get("priority") or "medium").strip() or "medium",
+        "status": (data.get("status") or "draft").strip() or "draft",
+        "acceptance_criteria": [
+            criterion.strip()
+            for criterion in (data.get("acceptance_criteria") or [])
+            if isinstance(criterion, str) and criterion.strip()
+        ],
+    }
+    if any(legacy_story[field] for field in ("user_type", "action", "benefit")):
+        return [legacy_story]
+    return []
 
 
 class ExportService:
@@ -33,19 +74,22 @@ class ExportService:
         acceptance_tests = []
         external_resources = []
         research_docs = []
+        folder_structures = []
 
         for doc in documents:
             data = doc.data or {}
             if doc.type == "user_story":
-                user_stories.append({
-                    "id": doc.id,
-                    "as_a": data.get("user_type", ""),
-                    "i_want_to": data.get("action", ""),
-                    "so_that": data.get("benefit", ""),
-                    "priority": data.get("priority", ""),
-                    "status": data.get("status", ""),
-                    "acceptance_criteria": data.get("acceptance_criteria", []),
-                })
+                for index, story in enumerate(_normalize_user_stories(data), start=1):
+                    user_stories.append({
+                        "id": doc.id if index == 1 else f"{doc.id}#{index}",
+                        "document_id": doc.id,
+                        "as_a": story.get("user_type", ""),
+                        "i_want_to": story.get("action", ""),
+                        "so_that": story.get("benefit", ""),
+                        "priority": story.get("priority", ""),
+                        "status": story.get("status", ""),
+                        "acceptance_criteria": story.get("acceptance_criteria", []),
+                    })
             elif doc.type == "requirement":
                 requirements.append({
                     "id": doc.id,
@@ -72,6 +116,7 @@ class ExportService:
                 test_plans.append({
                     "id": doc.id,
                     "test_scope": data.get("test_scope", ""),
+                    "tags": data.get("tags", []),
                     "test_strategy": data.get("test_strategy", ""),
                     "test_cases": data.get("test_cases", []),
                     "entry_criteria": data.get("entry_criteria", ""),
@@ -150,6 +195,14 @@ class ExportService:
                     "title": data.get("title", ""),
                     "body": data.get("body", ""),
                     "tags": data.get("tags", ""),
+                })
+            elif doc.type == "folder_structure":
+                folder_structures.append({
+                    "id": doc.id,
+                    "title": data.get("title", ""),
+                    "root_name": data.get("root_name", ""),
+                    "notes": data.get("notes", ""),
+                    "items": data.get("items", []),
                 })
 
         diagram_list = []
@@ -240,6 +293,7 @@ class ExportService:
         return {
             "project": project.name,
             "description": project.description or "",
+            "project_template": ProjectTemplateService.as_export_payload(project=project, documents=documents),
             "requirements": requirements,
             "nfrs": nfrs,
             "user_stories": user_stories,
@@ -250,6 +304,7 @@ class ExportService:
             "acceptance_tests": acceptance_tests,
             "external_resources": external_resources,
             "research": research_docs,
+            "folder_structures": folder_structures,
             "project_plans": project_plans,
             "test_plans": test_plans,
             "diagrams": diagram_list,
@@ -272,6 +327,21 @@ class ExportService:
         lines.append(f"# {data['project']}")
         if data["description"]:
             lines.append(f"\n{data['description']}")
+        if data.get("project_template"):
+            template = data["project_template"]
+            lines.append("\n## Project Template\n")
+            lines.append(f"**{template['label']}**")
+            lines.append(f"\n{template['summary']}")
+            if template["focus"]:
+                lines.append(f"\n**Focus:** {template['focus']}")
+            if template["layers"]:
+                lines.append("\n**Layers:**")
+                for layer in template["layers"]:
+                    lines.append(f"- {layer}")
+            if template["starter_outputs"]:
+                lines.append("\n**Starter Outputs:**")
+                for output in template["starter_outputs"]:
+                    lines.append(f"- {output}")
 
         # Requirements
         if data["requirements"]:
@@ -445,6 +515,25 @@ class ExportService:
                     lines.append(doc["body"])
                 lines.append("")
 
+        # Folder Structures
+        if data["folder_structures"]:
+            lines.append("\n## Folder Structures\n")
+            for structure in data["folder_structures"]:
+                lines.append(f"### {structure['title']}")
+                if structure["root_name"]:
+                    lines.append(f"- **Root:** `{structure['root_name']}`")
+                if structure["notes"]:
+                    lines.append(f"\n{structure['notes']}")
+                if structure["items"]:
+                    lines.append("\n| Path | Kind | Fixed | Purpose |")
+                    lines.append("|---|---|---|---|")
+                    for item in structure["items"]:
+                        fixed = "Yes" if item.get("is_fixed") else "No"
+                        lines.append(
+                            f"| `{item.get('path', '')}` | {item.get('kind', '')} | {fixed} | {item.get('purpose', '')} |"
+                        )
+                lines.append("")
+
         # Project Plans
         if data["project_plans"]:
             lines.append("\n## Project Plans\n")
@@ -483,6 +572,8 @@ class ExportService:
             lines.append("\n## Test Plans\n")
             for tp in data["test_plans"]:
                 lines.append(f"### Test Scope\n\n{tp['test_scope']}")
+                if tp["tags"]:
+                    lines.append(f"\n**Tags:** {', '.join(tp['tags'])}")
                 if tp["test_strategy"]:
                     lines.append(f"\n**Strategy:** {tp['test_strategy']}")
                 if tp["test_cases"]:

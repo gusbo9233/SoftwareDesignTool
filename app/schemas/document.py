@@ -1,10 +1,10 @@
 from datetime import datetime
 from typing import Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 _TYPE_PATTERN = (
     r"^(user_story|requirement|project_plan|test_plan|"
-    r"adr|tech_stack|nfr|risk_register|domain_model|acceptance_test|external_resource|research)$"
+    r"adr|tech_stack|nfr|risk_register|domain_model|acceptance_test|external_resource|research|folder_structure)$"
 )
 
 
@@ -32,13 +32,31 @@ class DocumentResponse(BaseModel):
 
 # --- Type-specific data validation schemas ---
 
-class UserStoryData(BaseModel):
+class UserStoryItemData(BaseModel):
     user_type: str = Field(min_length=1)
     action: str = Field(min_length=1)
     benefit: str = Field(min_length=1)
     priority: str = Field(default="medium", pattern=r"^(high|medium|low)$")
     status: str = Field(default="draft", pattern=r"^(draft|approved|implemented)$")
     acceptance_criteria: list[str] = []
+
+
+class UserStoryData(BaseModel):
+    user_type: str = ""
+    action: str = ""
+    benefit: str = ""
+    priority: str = Field(default="medium", pattern=r"^(high|medium|low)$")
+    status: str = Field(default="draft", pattern=r"^(draft|approved|implemented)$")
+    acceptance_criteria: list[str] = []
+    stories: list[UserStoryItemData] = []
+
+    @model_validator(mode="after")
+    def validate_story_payload(self):
+        if self.stories:
+            return self
+        if self.user_type and self.action and self.benefit:
+            return self
+        raise ValueError("User stories require either a complete legacy story or one or more stories.")
 
 
 class RequirementData(BaseModel):
@@ -77,6 +95,8 @@ class ProjectPlanData(BaseModel):
 
 class TestCaseData(BaseModel):
     description: str
+    test_name: str = Field(min_length=1)
+    test_uid: str = ""
     steps: str = ""
     expected_result: str = ""
     status: str = Field(default="not_run", pattern=r"^(not_run|passed|failed|blocked)$")
@@ -84,6 +104,7 @@ class TestCaseData(BaseModel):
 
 class TestPlanData(BaseModel):
     test_scope: str = Field(min_length=1)
+    tags: list[str] = []
     test_strategy: str = ""
     test_cases: list[TestCaseData] = []
     entry_criteria: str = ""
@@ -208,6 +229,20 @@ class ResearchDocumentData(BaseModel):
     tags: str = ""
 
 
+class FolderStructureItemData(BaseModel):
+    path: str = Field(min_length=1)
+    kind: str = Field(default="folder", pattern=r"^(solution|folder|file)$")
+    purpose: str = ""
+    is_fixed: bool = False
+
+
+class FolderStructureData(BaseModel):
+    title: str = Field(min_length=1)
+    root_name: str = ""
+    notes: str = ""
+    items: list[FolderStructureItemData] = []
+
+
 DOCUMENT_DATA_SCHEMAS = {
     "user_story": UserStoryData,
     "requirement": RequirementData,
@@ -221,4 +256,5 @@ DOCUMENT_DATA_SCHEMAS = {
     "acceptance_test": AcceptanceTestData,
     "external_resource": ExternalResourceData,
     "research": ResearchDocumentData,
+    "folder_structure": FolderStructureData,
 }

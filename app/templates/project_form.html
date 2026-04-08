@@ -55,6 +55,23 @@
                           rows="4"
                           class="w-full bg-surface-container text-on-surface text-sm font-body px-3 py-2.5 rounded-sm border-0 outline-none focus:ring-1 focus:ring-primary placeholder-outline transition-shadow resize-y">{{ project.description if project else '' }}</textarea>
             </div>
+            <div class="space-y-2">
+                <label for="template_key" class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant block">
+                    Project Template
+                </label>
+                <select id="template_key"
+                        name="template_key"
+                        class="w-full bg-surface-container text-on-surface text-sm font-body px-3 py-2.5 rounded-sm border-0 outline-none focus:ring-1 focus:ring-primary transition-shadow">
+                    {% for template in available_templates %}
+                    <option value="{{ template.key }}" {% if selected_template == template.key %}selected{% endif %}>
+                        {{ template.label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-on-surface-variant leading-relaxed">
+                    Choose a starter architecture. The ASP.NET Core option seeds a Clean Architecture baseline, and the MVC option seeds a classic Model View Controller project structure.
+                </p>
+            </div>
         </div>
 
         <div class="flex items-center gap-3">

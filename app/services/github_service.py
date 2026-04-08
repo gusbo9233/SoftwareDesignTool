@@ -6,6 +6,7 @@ Uses httpx for HTTP requests with rate-limit handling.
 import io
 import time
 import zipfile
+import base64
 
 import httpx
 
@@ -82,6 +83,31 @@ class GitHubService:
         })
         return resp.json()
 
+    def get_tree(self, ref="main", recursive=True):
+        """Fetch repository tree entries for a branch/ref."""
+        params = {"recursive": "1"} if recursive else None
+        resp = self._request("GET", f"{self._repo_url}/git/trees/{ref}", params=params)
+        return resp.json()
+
+    def get_file_content(self, path, ref="main"):
+        """Fetch decoded file content for a repository path."""
+        resp = self._request("GET", f"{self._repo_url}/contents/{path}", params={"ref": ref})
+        payload = resp.json()
+        content = payload.get("content", "")
+        encoding = payload.get("encoding")
+        if encoding == "base64":
+            decoded = base64.b64decode(content).decode("utf-8", errors="replace")
+        else:
+            decoded = content
+        return {
+            "path": payload.get("path", path),
+            "name": payload.get("name", path.split("/")[-1]),
+            "size": payload.get("size"),
+            "sha": payload.get("sha"),
+            "content": decoded,
+            "html_url": payload.get("html_url"),
+        }
+
     def list_workflow_runs(self, branch=None, per_page=20, page=1):
         """List workflow runs, optionally filtered by branch."""
         params = {"per_page": per_page, "page": page}
@@ -99,6 +125,24 @@ class GitHubService:
         """List artifacts for a workflow run."""
         resp = self._request("GET", f"{self._repo_url}/actions/runs/{run_id}/artifacts")
         return resp.json()
+
+    def list_run_jobs(self, run_id, per_page=100, page=1):
+        """List jobs for a workflow run."""
+        resp = self._request(
+            "GET",
+            f"{self._repo_url}/actions/runs/{run_id}/jobs",
+            params={"per_page": per_page, "page": page},
+        )
+        return resp.json()
+
+    def download_job_logs(self, job_id):
+        """Download raw text logs for a workflow job."""
+        resp = self._request(
+            "GET",
+            f"{self._repo_url}/actions/jobs/{job_id}/logs",
+            follow_redirects=True,
+        )
+        return resp.text
 
     def download_artifact(self, artifact_id):
         """Download an artifact ZIP and return the bytes."""

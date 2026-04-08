@@ -72,7 +72,9 @@
                         {% if item.source_type == 'requirement' %}
                             {{ item.doc.data.get('title', 'Untitled') }}
                         {% else %}
-                            User Story: {{ item.doc.data.get('user_type', 'Untitled') | capitalize }}
+                            {% set stories = item.doc.data.get('stories', []) %}
+                            {% set primary_story = stories[0] if stories else item.doc.data %}
+                            User Story{% if stories|length > 1 %}s{% endif %}: {{ primary_story.get('user_type', 'Untitled') | capitalize }}
                         {% endif %}
                     </a>
                 </td>
@@ -107,7 +109,9 @@
                 <select id="user_story_id" name="user_story_id">
                     <option value="">— none —</option>
                     {% for us in user_stories %}
-                    <option value="{{ us.id }}">{{ us.data.get('user_type', '') | capitalize }}: {{ us.data.get('action', us.id) }}</option>
+                    {% set stories = us.data.get('stories', []) %}
+                    {% set primary_story = stories[0] if stories else us.data %}
+                    <option value="{{ us.id }}">{{ primary_story.get('user_type', '') | capitalize }}: {{ primary_story.get('action', us.id) }}{% if stories|length > 1 %} (+{{ stories|length - 1 }} more){% endif %}</option>
                     {% endfor %}
                 </select>
             </div>

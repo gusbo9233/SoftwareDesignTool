@@ -46,7 +46,7 @@ class DiagramService:
             "name": name,
             "data": data or {"nodes": [], "edges": []},
         }).execute()
-        return SimpleNamespace(**res.data[0])
+        return _diagram(res.data[0])
 
     @staticmethod
     def update(diagram, name=None, data=None):
@@ -58,7 +58,8 @@ class DiagramService:
         if updates:
             res = _app.supabase.table("diagrams").update(updates).eq("id", diagram.id).execute()
             if res.data:
-                for k, v in res.data[0].items():
+                parsed = _diagram(res.data[0])
+                for k, v in vars(parsed).items():
                     setattr(diagram, k, v)
         return diagram
 

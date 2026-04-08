@@ -1,6 +1,7 @@
 import pytest
 from pydantic import ValidationError
 from app.services.document_service import DocumentService
+from app.services.test_result_service import TestResultService
 from app.schemas.document import (
     UserStoryData, RequirementData, ProjectPlanData, TestPlanData,
 )
@@ -89,9 +90,10 @@ class TestDocumentRoutes:
         assert b"Documents" in response.data
 
     def test_create_user_story_get(self, client, project_id):
-        response = client.get(f"/projects/{project_id}/documents/new/user_story")
+        response = client.get(f"/projects/{project_id}/documents/new/user_story", follow_redirects=True)
         assert response.status_code == 200
-        assert b"User Story" in response.data
+        assert b"User Stories" in response.data
+        assert b"Add Story" in response.data
 
     def test_create_user_story_post(self, client, project_id):
         response = client.post(
@@ -100,14 +102,80 @@ class TestDocumentRoutes:
                 "user_type": "developer",
                 "action": "write tests",
                 "benefit": "ensure quality",
-                "priority": "high",
-                "status": "draft",
                 "acceptance_criteria": ["Tests pass", "Coverage > 80%"],
             },
             follow_redirects=True,
         )
         assert response.status_code == 200
         assert b"developer" in response.data
+
+    def test_create_multi_user_story_post(self, client, project_id):
+        response = client.post(
+            f"/projects/{project_id}/documents/new/user_story",
+            data={
+                "story_user_type": ["developer", "admin"],
+                "story_action": ["write tests", "manage users"],
+                "story_benefit": ["ensure quality", "control access"],
+                "story_acceptance_criteria": ["Tests pass\nCoverage > 80%", "Users can be assigned roles"],
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"Story 1" in response.data
+        assert b"Story 2" in response.data
+        assert b"manage users" in response.data
+
+    def test_create_user_story_reuses_single_document(self, client, project_id):
+        first = client.post(
+            f"/projects/{project_id}/documents/new/user_story",
+            data={
+                "story_user_type": ["developer"],
+                "story_action": ["write tests"],
+                "story_benefit": ["ensure quality"],
+                "story_acceptance_criteria": ["Tests pass"],
+            },
+            follow_redirects=True,
+        )
+        assert first.status_code == 200
+
+        second = client.post(
+            f"/projects/{project_id}/documents/new/user_story",
+            data={
+                "story_user_type": ["admin"],
+                "story_action": ["manage users"],
+                "story_benefit": ["control access"],
+                "story_acceptance_criteria": ["Roles can be assigned"],
+            },
+            follow_redirects=True,
+        )
+        assert second.status_code == 200
+        assert b"Story 2" in second.data
+
+        docs = DocumentService.get_all_for_project(project_id, doc_type="user_story")
+        assert len(docs) == 1
+        assert len(docs[0].data["stories"]) == 2
+
+    def test_add_user_story_from_detail_page(self, client, project_id):
+        response = client.get(f"/projects/{project_id}/documents/new/user_story", follow_redirects=True)
+        assert response.status_code == 200
+
+        docs = DocumentService.get_all_for_project(project_id, doc_type="user_story")
+        assert len(docs) == 1
+        doc = docs[0]
+
+        response = client.post(
+            f"/projects/{project_id}/documents/{doc.id}/user-stories/add",
+            data={
+                "user_type": "learner",
+                "action": "practice vocabulary",
+                "benefit": "learn language",
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"practice vocabulary" in response.data
+        assert b"Priority" not in response.data
+        assert b"Acceptance Criteria" not in response.data
 
     def test_create_user_story_missing_fields(self, client, project_id):
         response = client.post(
@@ -164,7 +232,14 @@ class TestDocumentRoutes:
             f"/projects/{project_id}/documents/new/test_plan",
             data={
                 "test_scope": "API endpoints",
+                "tags": ["unit", "integration"],
+                "custom_tags": "api",
                 "test_strategy": "Unit and integration",
+                "case_description": ["Valid login test"],
+                "case_test_name": ["login_valid_credentials"],
+                "case_steps": ["Submit valid credentials"],
+                "case_expected": ["Dashboard is shown"],
+                "case_status": ["not_run"],
                 "entry_criteria": "Code complete",
                 "exit_criteria": "All tests pass",
                 "environment": "Python 3.11, Supabase",
@@ -173,6 +248,49 @@ class TestDocumentRoutes:
         )
         assert response.status_code == 200
         assert b"API endpoints" in response.data
+        assert b"unit" in response.data
+        assert b"integration" in response.data
+        assert b"login_valid_credentials" in response.data
+
+    def test_create_test_plan_requires_test_name_per_case(self, client, project_id):
+        response = client.post(
+            f"/projects/{project_id}/documents/new/test_plan",
+            data={
+                "test_scope": "API endpoints",
+                "case_description": ["Valid login test"],
+                "case_test_name": [""],
+                "case_steps": ["Submit valid credentials"],
+                "case_expected": ["Dashboard is shown"],
+                "case_status": ["not_run"],
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"Each test case requires a test name." in response.data
+
+    def test_create_multiple_test_plans(self, client, project_id):
+        first = client.post(
+            f"/projects/{project_id}/documents/new/test_plan",
+            data={
+                "test_scope": "Core unit test plan",
+                "tags": ["unit"],
+            },
+            follow_redirects=True,
+        )
+        assert first.status_code == 200
+
+        second = client.post(
+            f"/projects/{project_id}/documents/new/test_plan",
+            data={
+                "test_scope": "Critical flow end-to-end plan",
+                "tags": ["e2e"],
+            },
+            follow_redirects=True,
+        )
+        assert second.status_code == 200
+
+        docs = DocumentService.get_all_for_project(project_id, doc_type="test_plan")
+        assert len(docs) == 2
 
     def test_document_detail(self, client, project_id):
         doc = DocumentService.create(
@@ -182,6 +300,42 @@ class TestDocumentRoutes:
         response = client.get(f"/projects/{project_id}/documents/{doc.id}")
         assert response.status_code == 200
         assert b"admin" in response.data
+
+    def test_test_plan_detail_shows_latest_ci_result_per_test_case(self, client, project):
+        doc = DocumentService.create(
+            project_id=project.id,
+            doc_type="test_plan",
+            data={
+                "test_scope": "Calculator",
+                "test_cases": [
+                    {"test_name": "test_add", "description": "adding two numbers", "test_uid": "039a3612", "steps": "", "expected_result": "", "status": "not_run"},
+                    {"test_name": "test_divide", "description": "dividing two numbers", "test_uid": "f08e363a", "steps": "", "expected_result": "", "status": "not_run"},
+                ],
+            },
+        )
+        run = TestResultService.create_run(
+            project_id=project.id,
+            github_run_id=321,
+            branch="main",
+            commit_sha="4ac1e2c",
+            status="completed",
+            conclusion="success",
+            run_url="https://github.com/example/run/321",
+            total_tests=2,
+            passed=2,
+            failed=0,
+            skipped=0,
+        )
+        TestResultService.create_results(run.id, [
+            {"test_name": "test_add", "class_name": "test_calculator.py", "status": "passed", "duration_seconds": 0.1, "failure_message": None, "failure_output": None},
+            {"test_name": "test_divide", "class_name": "test_calculator.py", "status": "passed", "duration_seconds": 0.1, "failure_message": None, "failure_output": None},
+        ])
+
+        response = client.get(f"/projects/{project.id}/documents/{doc.id}")
+
+        assert response.status_code == 200
+        assert b"Latest CI" in response.data
+        assert b"Run 4ac1e2c" in response.data
 
     def test_document_detail_not_found(self, client, project_id):
         response = client.get(f"/projects/{project_id}/documents/00000000-0000-0000-0000-000000000000", follow_redirects=True)
@@ -219,6 +373,13 @@ class TestDocumentSchemas:
     def test_user_story_valid(self):
         data = UserStoryData(user_type="dev", action="code", benefit="ship")
         assert data.priority == "medium"
+
+    def test_multi_user_story_valid(self):
+        data = UserStoryData(stories=[
+            {"user_type": "dev", "action": "code", "benefit": "ship"},
+            {"user_type": "admin", "action": "manage", "benefit": "control"},
+        ])
+        assert len(data.stories) == 2
 
     def test_user_story_missing_required(self):
         with pytest.raises(ValidationError):

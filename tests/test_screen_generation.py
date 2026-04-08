@@ -90,6 +90,8 @@ def test_background_generation_updates_screen_on_success(app, project, monkeypat
     assert updated.data["html"] == "<div>hello</div>"
     assert updated.data["image_url"] == "https://example.com/screen.png"
     assert updated.data["generation_error"] == ""
+    assert len(updated.data["materials"]) == 2
+    assert updated.data["materials"][0]["id"] == "screen-html"
 
 
 def test_background_generation_updates_screen_on_sdk_structured_success(app, project, monkeypatch):
@@ -148,6 +150,7 @@ def test_background_generation_updates_screen_on_sdk_structured_success(app, pro
     assert updated.data["stitch_screen_id"] == "screen-456"
     assert updated.data["image_url"] == "https://example.com/sdk-screen.png"
     assert updated.data["generation_error"] == ""
+    assert updated.data["materials"][0]["id"] == "screen-image"
 
 
 def test_background_generation_updates_screen_on_failure(app, project, monkeypatch):
