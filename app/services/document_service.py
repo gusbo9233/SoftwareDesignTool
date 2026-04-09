@@ -23,10 +23,12 @@ def _doc(d):
 
 class DocumentService:
     @staticmethod
-    def get_all_for_project(project_id, doc_type=None):
+    def get_all_for_project(project_id, doc_type=None, module_id=None):
         query = _app.supabase.table("documents").select("*").eq("project_id", project_id)
         if doc_type:
             query = query.eq("type", doc_type)
+        if module_id is not None:
+            query = query.eq("module_id", module_id)
         res = query.order("updated_at", desc=True).execute()
         return [_doc(d) for d in res.data]
 
@@ -36,21 +38,26 @@ class DocumentService:
         return _doc(res.data) if res.data else None
 
     @staticmethod
-    def create(project_id, doc_type, data=None):
-        res = _app.supabase.table("documents").insert({
+    def create(project_id, doc_type, data=None, module_id=None):
+        payload = {
             "project_id": project_id,
             "type": doc_type,
             "data": data or {},
-        }).execute()
+        }
+        if module_id:
+            payload["module_id"] = module_id
+        res = _app.supabase.table("documents").insert(payload).execute()
         return SimpleNamespace(**res.data[0])
 
     @staticmethod
-    def update(doc, data=None, doc_type=None):
+    def update(doc, data=None, doc_type=None, module_id=None):
         updates = {}
         if data is not None:
             updates["data"] = data
         if doc_type is not None:
             updates["type"] = doc_type
+        if module_id is not None:
+            updates["module_id"] = module_id if module_id != "" else None
         if updates:
             res = _app.supabase.table("documents").update(updates).eq("id", doc.id).execute()
             if res.data:

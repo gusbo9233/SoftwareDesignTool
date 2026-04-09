@@ -71,6 +71,8 @@
         <textarea id="notes" name="notes" rows="2" placeholder="Optional notes">{{ data.get('notes', '') }}</textarea>
     </div>
 
+    {% include "documents/_module_picker.html" %}
+
     <div class="form-actions">
         <button type="submit" class="btn btn-primary">{{ "Update" if document else "Create" }}</button>
         <a href="{{ url_for('documents.index', project_id=project.id) }}" class="btn">Cancel</a>

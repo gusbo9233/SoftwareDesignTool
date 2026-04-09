@@ -57,6 +57,23 @@
                     <span class="font-label text-[10px] bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-sm">{{ project.documents | length }}</span>
                 </a>
 
+                {% if sidebar_modules is defined and sidebar_modules %}
+                {% for mod in sidebar_modules %}
+                <a href="{{ url_for('documents.index', project_id=project.id) }}#module-{{ mod.id }}"
+                   class="flex items-center gap-2 pl-8 pr-3 py-1.5 rounded-sm text-xs font-label text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
+                    <span class="material-symbols-outlined text-sm">folder</span>
+                    <span class="truncate">{{ mod.name }}</span>
+                </a>
+                {% for child in mod.children %}
+                <a href="{{ url_for('documents.index', project_id=project.id) }}#module-{{ child.id }}"
+                   class="flex items-center gap-2 pl-12 pr-3 py-1.5 rounded-sm text-xs font-label text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
+                    <span class="material-symbols-outlined text-sm">folder</span>
+                    <span class="truncate">{{ child.name }}</span>
+                </a>
+                {% endfor %}
+                {% endfor %}
+                {% endif %}
+
                 <a href="{{ url_for('diagrams.index', project_id=project.id) }}"
                    class="flex items-center justify-between px-3 py-2 rounded-sm text-sm font-label transition-colors
                    {% if active_section == 'diagrams' %}bg-surface-bright text-primary border-l-2 border-primary pl-2.5{% else %}text-on-surface-variant hover:text-on-surface hover:bg-surface-container{% endif %}">

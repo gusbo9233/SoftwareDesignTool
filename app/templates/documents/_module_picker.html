@@ -1,0 +1,11 @@
+{% if modules is defined and modules %}
+<div class="form-group">
+    <label for="module_id">Module</label>
+    <select id="module_id" name="module_id">
+        <option value="">None (project-level)</option>
+        {% for m in modules %}
+        <option value="{{ m.id }}" {{ 'selected' if selected_module_id is defined and selected_module_id == m.id }}>{{ m.name }}</option>
+        {% endfor %}
+    </select>
+</div>
+{% endif %}
