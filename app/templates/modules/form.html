@@ -1,0 +1,64 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}{{ "Edit" if module else "New" }} Module - {{ project.name }}{% endblock %}
+
+{% block breadcrumb_extra %}
+<span class="text-outline-variant">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}" class="hover:text-primary transition-colors">Documents</a>
+<span class="text-outline-variant">/</span>
+<span>{{ "Edit" if module else "New" }} Module</span>
+{% endblock %}
+
+{% block project_content %}
+
+<div class="flex items-center justify-between mb-8">
+    <div>
+        <span class="font-label text-[10px] uppercase tracking-widest text-primary mb-1.5 block">Project / Modules</span>
+        <h1 class="text-3xl font-extrabold tracking-tighter text-on-surface">{{ "Edit" if module else "New" }} Module</h1>
+    </div>
+</div>
+
+<div class="bg-surface-container-low rounded-lg p-6 max-w-2xl">
+    <form method="POST">
+        <div class="mb-5">
+            <label for="name" class="block font-label text-xs uppercase tracking-widest text-on-surface-variant mb-1.5">Name</label>
+            <input type="text" id="name" name="name"
+                   value="{{ module.name if module else '' }}"
+                   placeholder="e.g. Authentication, Payments, Dashboard"
+                   required
+                   class="w-full bg-surface-container rounded-sm border border-outline-variant/30 px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+        </div>
+
+        <div class="mb-5">
+            <label for="description" class="block font-label text-xs uppercase tracking-widest text-on-surface-variant mb-1.5">Description</label>
+            <textarea id="description" name="description" rows="3"
+                      placeholder="Optional description of this module's scope"
+                      class="w-full bg-surface-container rounded-sm border border-outline-variant/30 px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">{{ module.description if module else '' }}</textarea>
+        </div>
+
+        <div class="mb-6">
+            <label for="parent_id" class="block font-label text-xs uppercase tracking-widest text-on-surface-variant mb-1.5">Parent Module</label>
+            <select id="parent_id" name="parent_id"
+                    class="w-full bg-surface-container rounded-sm border border-outline-variant/30 px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                <option value="">None (top-level)</option>
+                {% for m in all_modules %}
+                <option value="{{ m.id }}" {{ 'selected' if module and module.parent_id == m.id }}>{{ m.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button type="submit"
+                    class="inline-flex items-center gap-1.5 bg-gradient-to-br from-primary to-primary-dim text-on-primary px-5 py-2.5 rounded-sm font-semibold text-xs font-label hover:brightness-110 active:scale-95 transition-all shadow-sm">
+                {{ "Update" if module else "Create" }} Module
+            </button>
+            <a href="{{ url_for('documents.index', project_id=project.id) }}"
+               class="inline-flex items-center gap-1.5 bg-surface-container text-on-surface px-5 py-2.5 rounded-sm font-semibold text-xs font-label hover:bg-surface-container-high transition-colors">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

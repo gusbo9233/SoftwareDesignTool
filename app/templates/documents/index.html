@@ -10,6 +10,104 @@
 
 {% block project_content %}
 
+{# --- Macros --- #}
+{% macro doc_row(doc) %}
+<tr class="hover:bg-surface-container-highest/50 transition-colors border-t" style="border-color: rgba(171,179,183,0.08);">
+    <td class="px-5 py-3">
+        <a href="{{ url_for('documents.detail', project_id=project.id, id=doc.id) }}"
+           class="flex items-center gap-2.5 text-sm font-medium text-on-surface hover:text-primary transition-colors">
+            <span class="material-symbols-outlined text-sm text-secondary">description</span>
+            {% if doc.type == 'user_story' %}
+                {% set stories = doc.data.get('stories', []) %}
+                {% set primary_story = stories[0] if stories else doc.data %}
+                User Story{% if stories|length > 1 %}s ({{ stories|length }}){% endif %}: {{ primary_story.get('user_type', 'Untitled') | capitalize }}
+            {% elif doc.type == 'requirement' %}
+                Requirement: {{ doc.data.get('title', 'Untitled') }}
+            {% elif doc.type == 'project_plan' %}
+                Project Plan: {{ doc.data.get('project_name', 'Untitled') }}
+            {% elif doc.type == 'test_plan' %}
+                Test Plan{% if doc.data.get('tags') %} [{{ doc.data.get('tags', []) | join(', ') }}]{% endif %}: {{ doc.data.get('test_scope', 'Untitled')[:50] }}
+            {% elif doc.type == 'adr' %}
+                ADR: {{ doc.data.get('title', 'Untitled') }}
+            {% elif doc.type == 'tech_stack' %}
+                Technology Stack ({{ doc.data.get('items', []) | length }} entries)
+            {% elif doc.type == 'nfr' %}
+                NFR: {{ doc.data.get('title', 'Untitled') }}
+            {% elif doc.type == 'risk_register' %}
+                Risk Register ({{ doc.data.get('items', []) | length }} risks)
+            {% elif doc.type == 'domain_model' %}
+                Domain Model: {{ doc.data.get('bounded_context_name', 'Untitled') }}
+            {% elif doc.type == 'acceptance_test' %}
+                Acceptance Test: {{ doc.data.get('title', 'Untitled') }}
+            {% elif doc.type == 'external_resource' %}
+                Resource: {{ doc.data.get('name', 'Untitled') }}
+            {% elif doc.type == 'research' %}
+                Research: {{ doc.data.get('title', 'Untitled') }}
+            {% elif doc.type == 'folder_structure' %}
+                Folder Structure: {{ doc.data.get('title', 'Untitled') }}
+            {% else %}
+                {{ type_labels.get(doc.type, doc.type) }}
+            {% endif %}
+        </a>
+    </td>
+    <td class="px-5 py-3">
+        <span class="font-label text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-sm bg-secondary/10 text-secondary">
+            {{ type_labels.get(doc.type, doc.type) }}
+        </span>
+    </td>
+    <td class="px-5 py-3 font-label text-[10px] text-on-surface-variant">
+        {{ doc.updated_at[:16].replace('T', ' ') if doc.updated_at is string else doc.updated_at.strftime('%Y-%m-%d %H:%M') }}
+    </td>
+</tr>
+{% endmacro %}
+
+{% macro doc_table(docs) %}
+{% if docs %}
+<table class="w-full text-left border-collapse">
+    <thead>
+        <tr class="bg-surface-container-high">
+            <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Artifact</th>
+            <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Type</th>
+            <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Updated</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for doc in docs %}
+        {{ doc_row(doc) }}
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% endmacro %}
+
+{% macro render_module(mod, depth=0) %}
+<details class="mb-2" open>
+    <summary class="flex items-center gap-2 cursor-pointer select-none py-2 px-3 rounded-lg hover:bg-surface-container-high transition-colors" style="margin-left: {{ depth * 1.5 }}rem;">
+        <span class="material-symbols-outlined text-base text-primary">folder</span>
+        <span class="font-label text-sm font-semibold text-on-surface">{{ mod.name }}</span>
+        <span class="font-label text-[10px] bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-sm">{{ mod.documents|length }}</span>
+        <span class="ml-auto flex items-center gap-1">
+            <a href="{{ url_for('modules.edit', project_id=project.id, module_id=mod.id) }}" class="text-on-surface-variant hover:text-primary transition-colors" title="Edit module">
+                <span class="material-symbols-outlined text-sm">edit</span>
+            </a>
+        </span>
+    </summary>
+    <div style="margin-left: {{ depth * 1.5 }}rem;">
+        {% if mod.description %}
+        <p class="text-xs text-on-surface-variant px-3 mb-2">{{ mod.description }}</p>
+        {% endif %}
+        {% if mod.documents %}
+        <div class="bg-surface-container-low rounded-lg overflow-hidden ml-3 mb-2">
+            {{ doc_table(mod.documents) }}
+        </div>
+        {% endif %}
+        {% for child in mod.children %}
+            {{ render_module(child, depth + 1) }}
+        {% endfor %}
+    </div>
+</details>
+{% endmacro %}
+
 <!-- Header -->
 <div class="flex items-center justify-between mb-8">
     <div>
@@ -24,7 +122,7 @@
     Create New
 </h2>
 
-<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-10">
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
     {% for type_key, type_label in create_type_labels.items() %}
     <a href="{{ url_for('documents.create', project_id=project.id, doc_type=type_key) }}"
        class="group flex items-center gap-2.5 bg-surface-container-low rounded-lg px-4 py-3 hover:bg-surface-container-high hover:text-primary transition-all text-sm font-label text-on-surface-variant font-medium">
@@ -34,81 +132,46 @@
     {% endfor %}
 </div>
 
-<!-- Existing Documents -->
+<div class="mb-10">
+    <a href="{{ url_for('modules.create', project_id=project.id) }}"
+       class="inline-flex items-center gap-2 bg-surface-container-low rounded-lg px-4 py-3 hover:bg-surface-container-high hover:text-primary transition-all text-sm font-label text-on-surface-variant font-medium">
+        <span class="material-symbols-outlined text-base text-outline">create_new_folder</span>
+        New Module
+    </a>
+</div>
+
+<!-- Module Tree -->
+{% if module_tree %}
 <h2 class="text-xs font-label font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 flex items-center gap-3">
     <span class="h-px w-6 bg-outline-variant"></span>
-    All Documents
-    <span class="font-label text-[10px] bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-sm">{{ documents | length }}</span>
+    Modules
 </h2>
 
-{% if documents %}
-<div class="bg-surface-container-low rounded-lg overflow-hidden">
-    <table class="w-full text-left border-collapse">
-        <thead>
-            <tr class="bg-surface-container-high">
-                <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Artifact</th>
-                <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Type</th>
-                <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Updated</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for doc in documents %}
-            <tr class="hover:bg-surface-container-highest/50 transition-colors border-t" style="border-color: rgba(171,179,183,0.08);">
-                <td class="px-5 py-3">
-                    <a href="{{ url_for('documents.detail', project_id=project.id, id=doc.id) }}"
-                       class="flex items-center gap-2.5 text-sm font-medium text-on-surface hover:text-primary transition-colors">
-                        <span class="material-symbols-outlined text-sm text-secondary">description</span>
-                        {% if doc.type == 'user_story' %}
-                            {% set stories = doc.data.get('stories', []) %}
-                            {% set primary_story = stories[0] if stories else doc.data %}
-                            User Story{% if stories|length > 1 %}s ({{ stories|length }}){% endif %}: {{ primary_story.get('user_type', 'Untitled') | capitalize }}
-                        {% elif doc.type == 'requirement' %}
-                            Requirement: {{ doc.data.get('title', 'Untitled') }}
-                        {% elif doc.type == 'project_plan' %}
-                            Project Plan: {{ doc.data.get('project_name', 'Untitled') }}
-                        {% elif doc.type == 'test_plan' %}
-                            Test Plan{% if doc.data.get('tags') %} [{{ doc.data.get('tags', []) | join(', ') }}]{% endif %}: {{ doc.data.get('test_scope', 'Untitled')[:50] }}
-                        {% elif doc.type == 'adr' %}
-                            ADR: {{ doc.data.get('title', 'Untitled') }}
-                        {% elif doc.type == 'tech_stack' %}
-                            Technology Stack ({{ doc.data.get('items', []) | length }} entries)
-                        {% elif doc.type == 'nfr' %}
-                            NFR: {{ doc.data.get('title', 'Untitled') }}
-                        {% elif doc.type == 'risk_register' %}
-                            Risk Register ({{ doc.data.get('items', []) | length }} risks)
-                        {% elif doc.type == 'domain_model' %}
-                            Domain Model: {{ doc.data.get('bounded_context_name', 'Untitled') }}
-                        {% elif doc.type == 'acceptance_test' %}
-                            Acceptance Test: {{ doc.data.get('title', 'Untitled') }}
-                        {% elif doc.type == 'external_resource' %}
-                            Resource: {{ doc.data.get('name', 'Untitled') }}
-                        {% elif doc.type == 'research' %}
-                            Research: {{ doc.data.get('title', 'Untitled') }}
-                        {% elif doc.type == 'folder_structure' %}
-                            Folder Structure: {{ doc.data.get('title', 'Untitled') }}
-                        {% else %}
-                            {{ type_labels.get(doc.type, doc.type) }}
-                        {% endif %}
-                    </a>
-                </td>
-                <td class="px-5 py-3">
-                    <span class="font-label text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-sm bg-secondary/10 text-secondary">
-                        {{ type_labels.get(doc.type, doc.type) }}
-                    </span>
-                </td>
-                <td class="px-5 py-3 font-label text-[10px] text-on-surface-variant">
-                    {{ doc.updated_at[:16].replace('T', ' ') if doc.updated_at is string else doc.updated_at.strftime('%Y-%m-%d %H:%M') }}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<div class="mb-8">
+    {% for mod in module_tree %}
+        {{ render_module(mod) }}
+    {% endfor %}
 </div>
-{% else %}
+{% endif %}
+
+<!-- Unassigned / All Documents -->
+<h2 class="text-xs font-label font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 flex items-center gap-3">
+    <span class="h-px w-6 bg-outline-variant"></span>
+    {% if module_tree %}Unassigned{% else %}All Documents{% endif %}
+    <span class="font-label text-[10px] bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-sm">{{ unassigned_docs | length }}</span>
+</h2>
+
+{% if unassigned_docs %}
+<div class="bg-surface-container-low rounded-lg overflow-hidden">
+    {{ doc_table(unassigned_docs) }}
+</div>
+{% elif not module_tree %}
 <div class="flex flex-col items-center justify-center py-16 text-center bg-surface-container-low rounded-lg">
     <span class="material-symbols-outlined text-4xl text-outline mb-4">description</span>
     <p class="text-on-surface-variant text-sm">No documents yet. Create one above.</p>
 </div>
+{% else %}
+<p class="text-on-surface-variant text-sm px-3">All documents are assigned to modules.</p>
 {% endif %}
 
 {% endblock %}

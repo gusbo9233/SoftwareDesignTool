@@ -25,11 +25,27 @@ def create_app(config_name="default"):
     from app.routes.api_endpoints import api_endpoints_bp
     from app.routes.github import github_bp
     from app.routes.screens import screens_bp
+    from app.routes.modules import modules_bp
     app.register_blueprint(projects_bp)
     app.register_blueprint(documents_bp)
     app.register_blueprint(diagrams_bp)
     app.register_blueprint(api_endpoints_bp)
     app.register_blueprint(github_bp)
     app.register_blueprint(screens_bp)
+    app.register_blueprint(modules_bp)
+
+    @app.context_processor
+    def inject_sidebar_modules():
+        """Make module tree available in all templates for the sidebar."""
+        from flask import request as _req
+        view_args = _req.view_args or {}
+        project_id = view_args.get("project_id")
+        if not project_id:
+            return {}
+        try:
+            from app.services.module_service import ModuleService
+            return {"sidebar_modules": ModuleService.get_tree_for_project(project_id)}
+        except Exception:
+            return {"sidebar_modules": []}
 
     return app

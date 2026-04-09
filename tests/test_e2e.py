@@ -96,6 +96,7 @@ class TestEndToEnd:
                     "test_scope": "Full system test",
                     "test_strategy": "End-to-end via HTTP client",
                     "case_description": ["Full workflow"],
+                    "case_test_name": ["test_full_workflow"],
                     "case_steps": ["Create, add, export"],
                     "case_expected": ["All pass"],
                     "case_status": ["not_run"],

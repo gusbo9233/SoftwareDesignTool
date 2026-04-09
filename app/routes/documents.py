@@ -7,6 +7,7 @@ from app.services.traceability_service import TraceabilityService
 from app.services.test_result_service import TestResultService, generate_test_uid
 from app.services.git_connection_service import GitConnectionService
 from app.services.github_service import GitHubService, GitHubAPIError
+from app.services.module_service import ModuleService
 
 documents_bp = Blueprint("documents", __name__)
 
@@ -698,10 +699,32 @@ def index(project_id):
         documents = [user_story_doc] + non_user_story_docs
     else:
         documents = non_user_story_docs
+
+    # Build module tree and attach documents
+    module_tree = ModuleService.get_tree_for_project(project_id)
+    modules_flat = ModuleService.get_all_for_project(project_id)
+    module_ids = {m.id for m in modules_flat}
+
+    def _attach_docs(node, docs):
+        node.documents = [d for d in docs if getattr(d, "module_id", None) == node.id]
+        for child in node.children:
+            _attach_docs(child, docs)
+
+    for node in module_tree:
+        _attach_docs(node, documents)
+
+    unassigned_docs = [
+        d for d in documents
+        if not getattr(d, "module_id", None) or getattr(d, "module_id", None) not in module_ids
+    ]
+
     return render_template(
         "documents/index.html",
         project=project,
         documents=documents,
+        module_tree=module_tree,
+        modules_flat=modules_flat,
+        unassigned_docs=unassigned_docs,
         type_labels=DOCUMENT_TYPES,
         create_type_labels=CREATE_DOCUMENT_TYPES,
     )
@@ -716,6 +739,8 @@ def create(project_id, doc_type):
     project = _get_project_or_redirect(project_id)
     if not project:
         return redirect(url_for("projects.index"))
+
+    modules = ModuleService.get_all_for_project(project_id)
 
     existing_user_story_doc = None
     if doc_type == "user_story":
@@ -733,6 +758,7 @@ def create(project_id, doc_type):
     if request.method == "POST":
         data = _parse_document_form(doc_type, request.form, project)
         _apply_test_id_fields(request.form, data)
+        module_id = request.form.get("module_id", "").strip() or None
         error = _validate_document_data(doc_type, data)
         if error:
             flash(error, "error")
@@ -741,6 +767,8 @@ def create(project_id, doc_type):
                 project=project,
                 document=None,
                 data=_normalize_user_story_data(data) if doc_type == "user_story" else data,
+                modules=modules,
+                selected_module_id=module_id,
                 **_document_template_context(project, data),
             )
         if doc_type == "user_story" and existing_user_story_doc:
@@ -752,7 +780,7 @@ def create(project_id, doc_type):
                 merged_data["test_uid"] = data.get("test_uid", "")
             doc = DocumentService.update(existing_user_story_doc, data=_normalize_user_story_data(merged_data))
         else:
-            doc = DocumentService.create(project_id=project_id, doc_type=doc_type, data=data)
+            doc = DocumentService.create(project_id=project_id, doc_type=doc_type, data=data, module_id=module_id)
         flash(f"{DOCUMENT_TYPES[doc_type]} created.", "success")
         return redirect(url_for("documents.detail", project_id=project_id, id=doc.id))
 
@@ -761,6 +789,7 @@ def create(project_id, doc_type):
         project=project,
         document=None,
         data=_normalize_user_story_data({}) if doc_type == "user_story" else {},
+        modules=modules,
         **_document_template_context(project),
     )
 
@@ -891,9 +920,12 @@ def edit(project_id, id):
             return redirect(url_for("documents.edit", project_id=project_id, id=canonical_doc.id))
         doc = canonical_doc or doc
 
+    modules = ModuleService.get_all_for_project(project_id)
+
     if request.method == "POST":
         data = _parse_document_form(doc.type, request.form, project)
         _apply_test_id_fields(request.form, data)
+        module_id = request.form.get("module_id", "").strip() or ""
         error = _validate_document_data(doc.type, data)
         if error:
             flash(error, "error")
@@ -902,9 +934,11 @@ def edit(project_id, id):
                 project=project,
                 document=doc,
                 data=_normalize_user_story_data(data) if doc.type == "user_story" else data,
+                modules=modules,
+                selected_module_id=module_id or getattr(doc, "module_id", None),
                 **_document_template_context(project, data),
             )
-        DocumentService.update(doc, data=data)
+        DocumentService.update(doc, data=data, module_id=module_id if module_id else "")
         flash(f"{DOCUMENT_TYPES[doc.type]} updated.", "success")
         return redirect(url_for("documents.detail", project_id=project_id, id=doc.id))
 
@@ -913,6 +947,8 @@ def edit(project_id, id):
         project=project,
         document=doc,
         data=_normalize_user_story_data(doc.data) if doc.type == "user_story" else doc.data,
+        modules=modules,
+        selected_module_id=getattr(doc, "module_id", None),
         **_document_template_context(project, doc.data),
     )
 

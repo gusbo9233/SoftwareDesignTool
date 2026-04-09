@@ -8,6 +8,7 @@ from app.services.git_connection_service import GitConnectionService
 from app.services.screen_service import ScreenService
 from app.services.design_system_service import DesignSystemService
 from app.services.project_template_service import ProjectTemplateService
+from app.services.module_service import ModuleService
 
 
 def _normalize_user_stories(data):
@@ -76,13 +77,27 @@ class ExportService:
         research_docs = []
         folder_structures = []
 
+        # Modules
+        modules_flat = ModuleService.get_all_for_project(project_id)
+        modules_export = []
+        for m in modules_flat:
+            modules_export.append({
+                "id": m.id,
+                "name": m.name,
+                "description": getattr(m, "description", ""),
+                "parent_id": getattr(m, "parent_id", None),
+                "position": getattr(m, "position", 0),
+            })
+
         for doc in documents:
             data = doc.data or {}
+            doc_module_id = getattr(doc, "module_id", None)
             if doc.type == "user_story":
                 for index, story in enumerate(_normalize_user_stories(data), start=1):
                     user_stories.append({
                         "id": doc.id if index == 1 else f"{doc.id}#{index}",
                         "document_id": doc.id,
+                        "module_id": doc_module_id,
                         "as_a": story.get("user_type", ""),
                         "i_want_to": story.get("action", ""),
                         "so_that": story.get("benefit", ""),
@@ -93,6 +108,7 @@ class ExportService:
             elif doc.type == "requirement":
                 requirements.append({
                     "id": doc.id,
+                    "module_id": doc_module_id,
                     "title": data.get("title", ""),
                     "description": data.get("description", ""),
                     "type": data.get("type", ""),
@@ -104,6 +120,7 @@ class ExportService:
             elif doc.type == "project_plan":
                 project_plans.append({
                     "id": doc.id,
+                    "module_id": doc_module_id,
                     "project_name": data.get("project_name", ""),
                     "project_description": data.get("project_description", ""),
                     "goals": data.get("goals", []),
@@ -115,6 +132,7 @@ class ExportService:
             elif doc.type == "test_plan":
                 test_plans.append({
                     "id": doc.id,
+                    "module_id": doc_module_id,
                     "test_scope": data.get("test_scope", ""),
                     "tags": data.get("tags", []),
                     "test_strategy": data.get("test_strategy", ""),
@@ -126,6 +144,7 @@ class ExportService:
             elif doc.type == "adr":
                 adrs.append({
                     "id": doc.id,
+                    "module_id": doc_module_id,
                     "title": data.get("title", ""),
                     "status": data.get("status", ""),
                     "context": data.get("context", ""),
@@ -137,11 +156,13 @@ class ExportService:
             elif doc.type == "tech_stack":
                 tech_stacks.append({
                     "id": doc.id,
+                    "module_id": doc_module_id,
                     "items": data.get("items", []),
                 })
             elif doc.type == "nfr":
                 nfrs.append({
                     "id": doc.id,
+                    "module_id": doc_module_id,
                     "title": data.get("title", ""),
                     "category": data.get("category", ""),
                     "description": data.get("description", ""),
@@ -153,11 +174,13 @@ class ExportService:
             elif doc.type == "risk_register":
                 risk_registers.append({
                     "id": doc.id,
+                    "module_id": doc_module_id,
                     "items": data.get("items", []),
                 })
             elif doc.type == "domain_model":
                 domain_models.append({
                     "id": doc.id,
+                    "module_id": doc_module_id,
                     "bounded_context_name": data.get("bounded_context_name", ""),
                     "bounded_context_description": data.get("bounded_context_description", ""),
                     "entities": data.get("entities", []),
@@ -168,6 +191,7 @@ class ExportService:
             elif doc.type == "acceptance_test":
                 acceptance_tests.append({
                     "id": doc.id,
+                    "module_id": doc_module_id,
                     "title": data.get("title", ""),
                     "test_name": data.get("test_name", ""),
                     "test_uid": data.get("test_uid", ""),
@@ -182,6 +206,7 @@ class ExportService:
             elif doc.type == "external_resource":
                 external_resources.append({
                     "id": doc.id,
+                    "module_id": doc_module_id,
                     "name": data.get("name", ""),
                     "type": data.get("type", ""),
                     "url": data.get("url", ""),
@@ -192,6 +217,7 @@ class ExportService:
             elif doc.type == "research":
                 research_docs.append({
                     "id": doc.id,
+                    "module_id": doc_module_id,
                     "title": data.get("title", ""),
                     "body": data.get("body", ""),
                     "tags": data.get("tags", ""),
@@ -199,6 +225,7 @@ class ExportService:
             elif doc.type == "folder_structure":
                 folder_structures.append({
                     "id": doc.id,
+                    "module_id": doc_module_id,
                     "title": data.get("title", ""),
                     "root_name": data.get("root_name", ""),
                     "notes": data.get("notes", ""),
@@ -294,6 +321,7 @@ class ExportService:
             "project": project.name,
             "description": project.description or "",
             "project_template": ProjectTemplateService.as_export_payload(project=project, documents=documents),
+            "modules": modules_export,
             "requirements": requirements,
             "nfrs": nfrs,
             "user_stories": user_stories,
@@ -342,6 +370,16 @@ class ExportService:
                 lines.append("\n**Starter Outputs:**")
                 for output in template["starter_outputs"]:
                     lines.append(f"- {output}")
+
+        # Modules
+        if data.get("modules"):
+            lines.append("\n## Modules\n")
+            for mod in data["modules"]:
+                parent_info = f" (parent: {mod['parent_id']})" if mod.get("parent_id") else ""
+                lines.append(f"- **{mod['name']}**{parent_info}")
+                if mod.get("description"):
+                    lines.append(f"  {mod['description']}")
+            lines.append("")
 
         # Requirements
         if data["requirements"]:

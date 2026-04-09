@@ -83,6 +83,9 @@
         <label for="environment">Environment</label>
         <textarea id="environment" name="environment" rows="2" placeholder="Required setup and dependencies">{{ data.get('environment', '') }}</textarea>
     </div>
+
+    {% include "documents/_module_picker.html" %}
+
     <div class="form-actions">
         <button type="submit" class="btn btn-primary">{{ "Update" if document else "Create" }}</button>
         <a href="{{ url_for('documents.index', project_id=project.id) }}" class="btn">Cancel</a>
