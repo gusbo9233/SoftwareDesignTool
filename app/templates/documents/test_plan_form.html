@@ -14,6 +14,53 @@
 {% block project_content %}
 <h1>{{ "Edit" if document else "New" }} Test Plan</h1>
 
+{% if not document and existing_test_plans is defined and existing_test_plans %}
+<div class="mb-8">
+    <h2 class="text-xs font-label font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 flex items-center gap-3">
+        <span class="h-px w-6 bg-outline-variant"></span>
+        Existing Test Plans
+    </h2>
+    <div class="bg-surface-container-low rounded-lg overflow-hidden">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-surface-container-high">
+                    <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Test Scope</th>
+                    <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Tags</th>
+                    <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Cases</th>
+                    <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Updated</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tp in existing_test_plans %}
+                <tr class="hover:bg-surface-container-highest/50 transition-colors border-t" style="border-color: rgba(171,179,183,0.08);">
+                    <td class="px-5 py-3">
+                        <a href="{{ url_for('documents.detail', project_id=project.id, id=tp.id) }}"
+                           class="text-sm font-medium text-on-surface hover:text-primary transition-colors">
+                            {{ tp.data.get('test_scope', 'Untitled')[:60] }}
+                        </a>
+                    </td>
+                    <td class="px-5 py-3">
+                        {% for tag in tp.data.get('tags', []) %}
+                        <span class="font-label text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-sm bg-secondary/10 text-secondary">{{ tag }}</span>
+                        {% endfor %}
+                    </td>
+                    <td class="px-5 py-3 font-label text-xs text-on-surface-variant">{{ tp.data.get('test_cases', [])|length }}</td>
+                    <td class="px-5 py-3 font-label text-[10px] text-on-surface-variant">
+                        {{ tp.updated_at[:16].replace('T', ' ') if tp.updated_at is string else tp.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<h2 class="text-xs font-label font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 flex items-center gap-3">
+    <span class="h-px w-6 bg-outline-variant"></span>
+    Create New Test Plan
+</h2>
+{% endif %}
+
 {% set selected_tags = data.get('tags', []) %}
 
 <form method="POST" class="form form-wide">

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Create Account{% endblock %}
+
+{% block content %}
+<section class="min-h-[calc(100vh-5.25rem)] flex items-center justify-center px-6 py-16">
+    <div class="w-full max-w-md bg-surface-container rounded-lg border border-outline-variant/30 p-8 shadow-sm">
+        <p class="font-label text-[10px] uppercase tracking-[0.22em] text-primary mb-2">Account</p>
+        <h1 class="text-3xl font-extrabold tracking-tight text-on-surface mb-2">Create account</h1>
+        <p class="text-sm text-on-surface-variant mb-6">Projects, documents, and diagrams will stay scoped to your user.</p>
+        <form method="POST" class="space-y-4">
+            <input type="hidden" name="next" value="{{ next_url }}">
+            <div>
+                <label for="name" class="block font-label text-xs uppercase tracking-widest text-on-surface-variant mb-1.5">Name</label>
+                <input id="name" name="name" type="text" value="{{ name }}" class="w-full bg-surface rounded-sm border border-outline-variant/30 px-4 py-2.5 text-sm text-on-surface">
+            </div>
+            <div>
+                <label for="email" class="block font-label text-xs uppercase tracking-widest text-on-surface-variant mb-1.5">Email</label>
+                <input id="email" name="email" type="email" value="{{ email }}" required class="w-full bg-surface rounded-sm border border-outline-variant/30 px-4 py-2.5 text-sm text-on-surface">
+            </div>
+            <div>
+                <label for="password" class="block font-label text-xs uppercase tracking-widest text-on-surface-variant mb-1.5">Password</label>
+                <input id="password" name="password" type="password" minlength="8" required class="w-full bg-surface rounded-sm border border-outline-variant/30 px-4 py-2.5 text-sm text-on-surface">
+            </div>
+            <button type="submit" class="w-full inline-flex justify-center items-center gap-1.5 bg-gradient-to-br from-primary to-primary-dim text-on-primary px-5 py-2.5 rounded-sm font-semibold text-xs font-label hover:brightness-110 transition-all">
+                Create Account
+            </button>
+        </form>
+        <div class="my-4 flex items-center gap-3 text-on-surface-variant text-xs font-label uppercase tracking-widest">
+            <div class="h-px flex-1 bg-outline-variant/40"></div>
+            <span>or</span>
+            <div class="h-px flex-1 bg-outline-variant/40"></div>
+        </div>
+        <a href="{{ url_for('auth.google_login', next=next_url) }}" class="w-full inline-flex justify-center items-center gap-2 bg-surface rounded-sm border border-outline-variant/40 px-5 py-2.5 text-sm font-semibold text-on-surface hover:bg-surface-container-high transition-colors">
+            <span>Continue with Google</span>
+        </a>
+        <p class="text-sm text-on-surface-variant mt-5">
+            Already have an account?
+            <a href="{{ url_for('auth.login', next=next_url) }}" class="text-primary font-semibold hover:underline">Sign in</a>
+        </p>
+    </div>
+</section>
+{% endblock %}

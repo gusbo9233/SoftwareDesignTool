@@ -118,6 +118,21 @@
         </nav>
     </div>
     <div class="flex items-center gap-2">
+        {% if current_user %}
+        <span class="font-label text-xs uppercase tracking-widest text-on-surface-variant px-2">{{ current_user.email }}</span>
+        <form method="POST" action="{{ url_for('auth.logout') }}" class="inline-form">
+            <button type="submit" class="inline-flex items-center gap-1.5 bg-surface-container text-on-surface px-3 py-1.5 rounded-sm font-semibold text-xs font-label hover:bg-surface-container-high transition-colors">
+                Sign Out
+            </button>
+        </form>
+        {% else %}
+        <a href="{{ url_for('auth.login') }}" class="inline-flex items-center gap-1.5 bg-surface-container text-on-surface px-3 py-1.5 rounded-sm font-semibold text-xs font-label hover:bg-surface-container-high transition-colors">
+            Sign In
+        </a>
+        <a href="{{ url_for('auth.signup') }}" class="inline-flex items-center gap-1.5 bg-gradient-to-br from-primary to-primary-dim text-on-primary px-3 py-1.5 rounded-sm font-semibold text-xs font-label hover:brightness-110 transition-all">
+            Sign Up
+        </a>
+        {% endif %}
         {% block nav_actions %}{% endblock %}
     </div>
 </header>

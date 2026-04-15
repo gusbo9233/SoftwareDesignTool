@@ -17,6 +17,20 @@
     </div>
 </div>
 
+{% if modules_flat %}
+<form method="GET" class="form" style="margin-bottom: 1rem;">
+    <div class="form-group" style="max-width: 20rem;">
+        <label for="module_id">Filter by module</label>
+        <select id="module_id" name="module_id" onchange="this.form.submit()">
+            <option value="">All modules</option>
+            {% for mod in modules_flat %}
+            <option value="{{ mod.id }}" {% if selected_module_id == mod.id %}selected{% endif %}>{{ mod.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</form>
+{% endif %}
+
 {% if diagrams %}
 <div class="project-list">
     {% for diagram in diagrams %}
@@ -27,6 +41,12 @@
             </a>
         </h3>
         <span class="doc-type-badge">{{ type_labels.get(diagram.type, diagram.type) }}</span>
+        {% if diagram.module_id is defined and diagram.module_id and modules_flat %}
+        {% set module = (modules_flat | selectattr("id", "equalto", diagram.module_id) | list | first) %}
+        {% if module %}
+        <div><small>Module: {{ module.name }}</small></div>
+        {% endif %}
+        {% endif %}
         <div class="actions" style="margin-top: 0.5rem;">
             <form method="POST" action="{{ url_for('diagrams.delete', project_id=project.id, id=diagram.id) }}" class="inline-form">
                 <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this diagram?')">Delete</button>

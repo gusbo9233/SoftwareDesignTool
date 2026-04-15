@@ -23,14 +23,11 @@ def _diagram(d):
 
 class DiagramService:
     @staticmethod
-    def get_all_for_project(project_id):
-        res = (
-            _app.supabase.table("diagrams")
-            .select("*")
-            .eq("project_id", project_id)
-            .order("updated_at", desc=True)
-            .execute()
-        )
+    def get_all_for_project(project_id, module_id=None):
+        query = _app.supabase.table("diagrams").select("*").eq("project_id", project_id)
+        if module_id is not None:
+            query = query.eq("module_id", module_id)
+        res = query.order("updated_at", desc=True).execute()
         return [_diagram(d) for d in res.data]
 
     @staticmethod
@@ -39,22 +36,27 @@ class DiagramService:
         return _diagram(res.data) if res.data else None
 
     @staticmethod
-    def create(project_id, diagram_type, name, data=None):
-        res = _app.supabase.table("diagrams").insert({
+    def create(project_id, diagram_type, name, data=None, module_id=None):
+        payload = {
             "project_id": project_id,
             "type": diagram_type,
             "name": name,
             "data": data or {"nodes": [], "edges": []},
-        }).execute()
+        }
+        if module_id:
+            payload["module_id"] = module_id
+        res = _app.supabase.table("diagrams").insert(payload).execute()
         return _diagram(res.data[0])
 
     @staticmethod
-    def update(diagram, name=None, data=None):
+    def update(diagram, name=None, data=None, module_id=None):
         updates = {}
         if name is not None:
             updates["name"] = name
         if data is not None:
             updates["data"] = data
+        if module_id is not None:
+            updates["module_id"] = module_id if module_id != "" else None
         if updates:
             res = _app.supabase.table("diagrams").update(updates).eq("id", diagram.id).execute()
             if res.data:

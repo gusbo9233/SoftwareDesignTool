@@ -223,3 +223,51 @@ class TestModuleRoutes:
         assert "Auth" in html
         assert "JWT Auth" in html
         assert "Unassigned Req" in html
+
+    def test_documents_index_handles_missing_modules_table(self, client, project, monkeypatch):
+        import app as app_module
+
+        class MissingModulesTableError(Exception):
+            def __init__(self):
+                super().__init__({
+                    "message": "Could not find the table 'public.modules' in the schema cache",
+                    "code": "PGRST205",
+                })
+
+        real_supabase = app_module.supabase
+
+        class BrokenModulesQuery:
+            def select(self, *_args, **_kwargs):
+                return self
+
+            def eq(self, *_args, **_kwargs):
+                return self
+
+            def order(self, *_args, **_kwargs):
+                return self
+
+            def maybe_single(self, *_args, **_kwargs):
+                return self
+
+            def insert(self, *_args, **_kwargs):
+                return self
+
+            def update(self, *_args, **_kwargs):
+                return self
+
+            def delete(self, *_args, **_kwargs):
+                return self
+
+            def execute(self):
+                raise MissingModulesTableError()
+
+        class SupabaseWithMissingModulesTable:
+            def table(self, name):
+                if name == "modules":
+                    return BrokenModulesQuery()
+                return real_supabase.table(name)
+
+        monkeypatch.setattr(app_module, "supabase", SupabaseWithMissingModulesTable())
+
+        resp = client.get(f"/projects/{project.id}/documents")
+        assert resp.status_code == 200

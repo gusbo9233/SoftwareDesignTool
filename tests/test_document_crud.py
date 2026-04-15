@@ -1,5 +1,6 @@
 import pytest
 from pydantic import ValidationError
+from datetime import datetime
 from app.services.document_service import DocumentService
 from app.services.test_result_service import TestResultService
 from app.schemas.document import (
@@ -75,6 +76,47 @@ class TestDocumentService:
         DocumentService.update(doc, data={"user_type": "new", "action": "test", "benefit": "test"})
         refreshed = DocumentService.get(doc.id)
         assert refreshed.data["user_type"] == "new"
+
+    def test_update_document_keeps_datetime_fields_parsed(self, monkeypatch, project_id):
+        import app as app_module
+
+        real_supabase = app_module.supabase
+
+        class StringTimestampSupabase:
+            def table(self, name):
+                builder = real_supabase.table(name)
+                original_execute = builder.execute
+
+                def execute_with_string_timestamps():
+                    result = original_execute()
+                    if name == "documents" and builder._op in {"insert", "update"} and result.data:
+                        data = []
+                        for row in result.data:
+                            row = dict(row)
+                            for field in ("created_at", "updated_at"):
+                                if isinstance(row.get(field), datetime):
+                                    row[field] = row[field].isoformat()
+                            data.append(row)
+                        result.data = data
+                    return result
+
+                builder.execute = execute_with_string_timestamps
+                return builder
+
+        monkeypatch.setattr(app_module, "supabase", StringTimestampSupabase())
+
+        doc = DocumentService.create(
+            project_id=project_id,
+            doc_type="user_story",
+            data={"user_type": "developer", "action": "write code", "benefit": "ship"},
+        )
+        updated = DocumentService.update(
+            doc,
+            data={"user_type": "developer", "action": "write tests", "benefit": "ship safely"},
+        )
+
+        assert isinstance(updated.created_at, datetime)
+        assert isinstance(updated.updated_at, datetime)
 
     def test_delete_document(self, project_id):
         doc = DocumentService.create(project_id=project_id, doc_type="user_story", data={})
@@ -155,6 +197,64 @@ class TestDocumentRoutes:
         assert len(docs) == 1
         assert len(docs[0].data["stories"]) == 2
 
+    def test_create_user_story_keeps_documents_separate_per_module(self, client, project):
+        from app.services.document_service import DocumentService
+        from app.services.module_service import ModuleService
+
+        auth = ModuleService.create(project.id, "Auth")
+        billing = ModuleService.create(project.id, "Billing")
+
+        response = client.post(
+            f"/projects/{project.id}/documents/new/user_story",
+            data={
+                "story_user_type": ["developer"],
+                "story_action": ["sign in"],
+                "story_benefit": ["access the app"],
+                "story_acceptance_criteria": ["Can log in"],
+                "module_id": auth.id,
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+
+        response = client.post(
+            f"/projects/{project.id}/documents/new/user_story",
+            data={
+                "story_user_type": ["accountant"],
+                "story_action": ["download invoices"],
+                "story_benefit": ["close the books"],
+                "story_acceptance_criteria": ["Invoices export as PDF"],
+                "module_id": billing.id,
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+
+        docs = DocumentService.get_all_for_project(project.id, doc_type="user_story")
+        assert len(docs) == 2
+        assert {doc.module_id for doc in docs} == {auth.id, billing.id}
+
+    def test_create_user_story_uses_selected_module_filter(self, client, project):
+        from app.services.document_service import DocumentService
+        from app.services.module_service import ModuleService
+
+        auth = ModuleService.create(project.id, "Auth")
+
+        response = client.get(
+            f"/projects/{project.id}/documents?module_id={auth.id}",
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+
+        response = client.get(
+            f"/projects/{project.id}/documents/new/user_story",
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        docs = DocumentService.get_all_for_project(project.id, doc_type="user_story")
+        assert len(docs) == 1
+        assert docs[0].module_id == auth.id
+
     def test_add_user_story_from_detail_page(self, client, project_id):
         response = client.get(f"/projects/{project_id}/documents/new/user_story", follow_redirects=True)
         assert response.status_code == 200
@@ -176,6 +276,37 @@ class TestDocumentRoutes:
         assert b"practice vocabulary" in response.data
         assert b"Priority" not in response.data
         assert b"Acceptance Criteria" not in response.data
+
+    def test_user_story_detail_handles_string_timestamps(self, client, monkeypatch, project_id):
+        import app as app_module
+
+        doc = DocumentService.create(
+            project_id=project_id,
+            doc_type="user_story",
+            data={
+                "stories": [{
+                    "user_type": "developer",
+                    "action": "write tests",
+                    "benefit": "prevent regressions",
+                }]
+            },
+        )
+
+        real_get = DocumentService.get
+
+        def fake_get(doc_id):
+            result = real_get(doc_id)
+            if result and result.id == doc.id:
+                result.created_at = "2026-04-14T12:00:00+00:00"
+                result.updated_at = "2026-04-14T12:30:00+00:00"
+            return result
+
+        monkeypatch.setattr("app.routes.documents.DocumentService.get", fake_get)
+
+        response = client.get(f"/projects/{project_id}/documents/{doc.id}")
+        assert response.status_code == 200
+        assert b"User Stories" in response.data
+        assert b"write tests" in response.data
 
     def test_create_user_story_missing_fields(self, client, project_id):
         response = client.post(

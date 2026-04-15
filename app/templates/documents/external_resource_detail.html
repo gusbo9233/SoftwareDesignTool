@@ -44,6 +44,6 @@
 </div>
 
 <div class="meta">
-    <small>Created {{ document.created_at.strftime('%Y-%m-%d %H:%M') }} | Updated {{ document.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+    <small>Created {{ document.created_at|format_datetime }} | Updated {{ document.updated_at|format_datetime }}</small>
 </div>
 {% endblock %}

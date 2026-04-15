@@ -30,6 +30,7 @@ def _project(d):
         if field in d:
             d[field] = _parse_dt(d[field])
     d.setdefault("template_key", "generic")
+    d.setdefault("user_id", None)
     d.setdefault("documents", [])
     d.setdefault("diagrams", [])
     d.setdefault("api_endpoints", [])
@@ -65,6 +66,14 @@ def _execute(builder, operation):
 
 class ProjectService:
     @staticmethod
+    def _active_user_id():
+        try:
+            from app.services.auth_service import AuthService
+            return AuthService.current_user_id()
+        except Exception:
+            return None
+
+    @staticmethod
     def _is_missing_column_error(exc, column_name):
         current = exc
         while current is not None:
@@ -77,33 +86,63 @@ class ProjectService:
         return False
 
     @staticmethod
-    def get_all():
-        res = _execute(
-            _app.supabase.table("projects").select("*").order("updated_at", desc=True),
-            "load projects",
+    def _ownership_storage_message():
+        return (
+            "Project ownership storage is not ready yet. Apply the users/project ownership migration first."
         )
+
+    @staticmethod
+    def get_all(user_id=None):
+        active_user_id = user_id if user_id is not None else ProjectService._active_user_id()
+        query = _app.supabase.table("projects").select("*")
+        if active_user_id:
+            query = query.eq("user_id", active_user_id)
+        try:
+            res = _execute(
+                query.order("updated_at", desc=True),
+                "load projects",
+            )
+        except ProjectServiceUnavailableError as exc:
+            if active_user_id and ProjectService._is_missing_column_error(exc, "user_id"):
+                raise ProjectServiceUnavailableError(ProjectService._ownership_storage_message()) from exc
+            raise
         return [_project(d) for d in res.data]
 
     @staticmethod
-    def get(id):
-        res = _execute(
-            _app.supabase.table("projects").select("*").eq("id", id).maybe_single(),
-            "load the project",
-        )
+    def get(id, user_id=None):
+        active_user_id = user_id if user_id is not None else ProjectService._active_user_id()
+        query = _app.supabase.table("projects").select("*").eq("id", id)
+        if active_user_id:
+            query = query.eq("user_id", active_user_id)
+        try:
+            res = _execute(
+                query.maybe_single(),
+                "load the project",
+            )
+        except ProjectServiceUnavailableError as exc:
+            if active_user_id and ProjectService._is_missing_column_error(exc, "user_id"):
+                raise ProjectServiceUnavailableError(ProjectService._ownership_storage_message()) from exc
+            raise
         return _project(res.data) if res.data else None
 
     @staticmethod
-    def create(name, description="", template_key="generic"):
+    def create(name, description="", template_key="generic", user_id=None):
+        active_user_id = user_id if user_id is not None else ProjectService._active_user_id()
         payload = {"name": name, "description": description, "template_key": template_key}
+        if active_user_id:
+            payload["user_id"] = active_user_id
         try:
             res = _execute(
                 _app.supabase.table("projects").insert(payload),
                 "create the project",
             )
         except ProjectServiceUnavailableError as exc:
-            if ProjectService._is_missing_column_error(exc, "template_key"):
+            if ProjectService._is_missing_column_error(exc, "template_key") or ProjectService._is_missing_column_error(exc, "user_id"):
+                fallback_payload = {"name": name, "description": description}
+                if active_user_id and not ProjectService._is_missing_column_error(exc, "user_id"):
+                    fallback_payload["user_id"] = active_user_id
                 res = _execute(
-                    _app.supabase.table("projects").insert({"name": name, "description": description}),
+                    _app.supabase.table("projects").insert(fallback_payload),
                     "create the project",
                 )
             else:
@@ -111,7 +150,8 @@ class ProjectService:
         return _project(res.data[0])
 
     @staticmethod
-    def update(project, name=None, description=None, template_key=None):
+    def update(project, name=None, description=None, template_key=None, user_id=None):
+        active_user_id = user_id if user_id is not None else ProjectService._active_user_id()
         updates = {}
         if name is not None:
             updates["name"] = name
@@ -121,8 +161,11 @@ class ProjectService:
             updates["template_key"] = template_key
         if updates:
             try:
+                query = _app.supabase.table("projects").update(updates).eq("id", project.id)
+                if active_user_id:
+                    query = query.eq("user_id", active_user_id)
                 res = _execute(
-                    _app.supabase.table("projects").update(updates).eq("id", project.id),
+                    query,
                     "update the project",
                 )
             except ProjectServiceUnavailableError as exc:
@@ -131,11 +174,16 @@ class ProjectService:
                     fallback_updates.pop("template_key", None)
                     if not fallback_updates:
                         return project
+                    query = _app.supabase.table("projects").update(fallback_updates).eq("id", project.id)
+                    if active_user_id:
+                        query = query.eq("user_id", active_user_id)
                     res = _execute(
-                        _app.supabase.table("projects").update(fallback_updates).eq("id", project.id),
+                        query,
                         "update the project",
                     )
                 else:
+                    if active_user_id and ProjectService._is_missing_column_error(exc, "user_id"):
+                        raise ProjectServiceUnavailableError(ProjectService._ownership_storage_message()) from exc
                     raise
             if res.data:
                 normalized = _project(res.data[0])
@@ -144,8 +192,12 @@ class ProjectService:
         return project
 
     @staticmethod
-    def delete(project):
+    def delete(project, user_id=None):
+        active_user_id = user_id if user_id is not None else ProjectService._active_user_id()
+        query = _app.supabase.table("projects").delete().eq("id", project.id)
+        if active_user_id:
+            query = query.eq("user_id", active_user_id)
         _execute(
-            _app.supabase.table("projects").delete().eq("id", project.id),
+            query,
             "delete the project",
         )

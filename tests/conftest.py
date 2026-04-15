@@ -156,6 +156,7 @@ def app(_mock_supabase):
         TESTING = True
         SUPABASE_URL = "http://mock"
         SUPABASE_SERVICE_KEY = "mock-key"
+        SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.signature"
         SCREEN_MATERIALS_DIR = tempfile.mkdtemp(prefix="screen-materials-tests-")
 
     config["testing"] = _TestConfig
@@ -176,15 +177,31 @@ def _clean_store(_mock_supabase, app):
 
 
 @pytest.fixture
-def client(app):
+def user(app):
+    from app.services.auth_service import AuthService
+    return AuthService.create_user("test@example.com", "password123", name="Test User")
+
+
+@pytest.fixture
+def client(app, user):
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["user_email"] = user.email
+        sess["user_name"] = user.name
+    return client
+
+
+@pytest.fixture
+def anonymous_client(app):
     return app.test_client()
 
 
 @pytest.fixture
-def project(app):
+def project(app, user):
     """Isolated test project."""
     from app.services.project_service import ProjectService
-    p = ProjectService.create(name="Test Project")
+    p = ProjectService.create(name="Test Project", user_id=user.id)
     return p
 
 

@@ -47,7 +47,7 @@ class DocumentService:
         if module_id:
             payload["module_id"] = module_id
         res = _app.supabase.table("documents").insert(payload).execute()
-        return SimpleNamespace(**res.data[0])
+        return _doc(res.data[0])
 
     @staticmethod
     def update(doc, data=None, doc_type=None, module_id=None):
@@ -61,7 +61,8 @@ class DocumentService:
         if updates:
             res = _app.supabase.table("documents").update(updates).eq("id", doc.id).execute()
             if res.data:
-                for k, v in res.data[0].items():
+                normalized = _doc(res.data[0])
+                for k, v in vars(normalized).items():
                     setattr(doc, k, v)
         return doc
 

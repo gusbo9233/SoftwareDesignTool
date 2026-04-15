@@ -1,4 +1,9 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+import os
+import uuid
+import mimetypes
+
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, send_file
+from werkzeug.utils import secure_filename
 
 from app.services.project_service import ProjectService
 from app.services.document_service import DocumentService
@@ -128,8 +133,22 @@ def _merge_user_story_documents(primary_doc, docs_to_merge):
     return primary_doc
 
 
-def _get_or_consolidate_user_story_document(project_id):
+def _get_selected_module_id(project_id):
+    session_key = f"module_filter_{project_id}"
+    selected = session.get(session_key, "")
+    if not selected:
+        return None
+    modules_flat = ModuleService.get_all_for_project(project_id)
+    module_ids = {m.id for m in modules_flat}
+    return selected if selected in module_ids else None
+
+
+def _get_or_consolidate_user_story_document(project_id, module_id=None):
     user_story_docs = DocumentService.get_all_for_project(project_id, doc_type="user_story")
+    user_story_docs = [
+        d for d in user_story_docs
+        if getattr(d, "module_id", None) == module_id
+    ]
     if not user_story_docs:
         return None
 
@@ -141,6 +160,24 @@ def _get_or_consolidate_user_story_document(project_id):
         if normalized != (primary_doc.data or {}):
             DocumentService.update(primary_doc, data=normalized)
     return primary_doc
+
+
+def _get_or_consolidate_user_story_documents(project_id):
+    user_story_docs = DocumentService.get_all_for_project(project_id, doc_type="user_story")
+    module_ids = []
+    seen = set()
+    for doc in user_story_docs:
+        module_id = getattr(doc, "module_id", None)
+        if module_id not in seen:
+            seen.add(module_id)
+            module_ids.append(module_id)
+
+    canonical_docs = []
+    for module_id in module_ids:
+        canonical_doc = _get_or_consolidate_user_story_document(project_id, module_id=module_id)
+        if canonical_doc:
+            canonical_docs.append(canonical_doc)
+    return canonical_docs
 
 
 def _append_story_to_document(doc, story):
@@ -160,6 +197,26 @@ def _append_story_to_document(doc, story):
     })
     data["stories"] = stories
     return DocumentService.update(doc, data=_normalize_user_story_data(data))
+
+
+def _get_active_module_ids(project_id):
+    """Return the set of module IDs covered by the active filter, or None if no filter."""
+    selected = _get_selected_module_id(project_id)
+    if not selected:
+        return None
+    modules_flat = ModuleService.get_all_for_project(project_id)
+    by_id = {m.id: m for m in modules_flat}
+    for m in modules_flat:
+        m.children = []
+    for m in modules_flat:
+        if m.parent_id and m.parent_id in by_id:
+            by_id[m.parent_id].children.append(m)
+    def _collect(node):
+        ids = {node.id}
+        for child in node.children:
+            ids |= _collect(child)
+        return ids
+    return _collect(by_id[selected])
 
 
 def _get_project_or_redirect(project_id):
@@ -692,31 +749,73 @@ def index(project_id):
     project = _get_project_or_redirect(project_id)
     if not project:
         return redirect(url_for("projects.index"))
-    documents = DocumentService.get_all_for_project(project_id)
-    user_story_doc = _get_or_consolidate_user_story_document(project_id)
-    non_user_story_docs = [doc for doc in documents if doc.type != "user_story"]
-    if user_story_doc:
-        documents = [user_story_doc] + non_user_story_docs
+    # Module filter — persist in session per project
+    modules_flat = ModuleService.get_all_for_project(project_id)
+    module_ids = {m.id for m in modules_flat}
+    session_key = f"module_filter_{project_id}"
+    if "module_id" in request.args:
+        selected_module_id = request.args["module_id"]
+        if selected_module_id:
+            session[session_key] = selected_module_id
+        else:
+            session.pop(session_key, None)
     else:
-        documents = non_user_story_docs
+        selected_module_id = session.get(session_key, "")
+
+    active_module_ids = _get_active_module_ids(project_id)
+
+    documents = DocumentService.get_all_for_project(project_id)
+    user_story_docs = _get_or_consolidate_user_story_documents(project_id)
+    non_user_story_docs = [doc for doc in documents if doc.type != "user_story"]
+    documents = user_story_docs + non_user_story_docs
 
     # Build module tree and attach documents
     module_tree = ModuleService.get_tree_for_project(project_id)
-    modules_flat = ModuleService.get_all_for_project(project_id)
-    module_ids = {m.id for m in modules_flat}
 
-    def _attach_docs(node, docs):
-        node.documents = [d for d in docs if getattr(d, "module_id", None) == node.id]
+    def _collect_descendant_ids(node):
+        ids = {node.id}
         for child in node.children:
-            _attach_docs(child, docs)
+            ids |= _collect_descendant_ids(child)
+        return ids
 
-    for node in module_tree:
-        _attach_docs(node, documents)
+    if selected_module_id and selected_module_id in module_ids:
+        # Collect the selected module and all its descendants
+        by_id = {m.id: m for m in modules_flat}
+        def _build_subtree(mod):
+            mod.children = [_build_subtree(by_id[c.id]) for c in getattr(mod, 'children', []) if c.id in by_id]
+            return mod
+        # Rebuild tree from flat list with children
+        for m in modules_flat:
+            m.children = []
+        for m in modules_flat:
+            if m.parent_id and m.parent_id in by_id:
+                by_id[m.parent_id].children.append(m)
+        selected_mod = by_id.get(selected_module_id)
+        allowed_ids = _collect_descendant_ids(selected_mod)
+        filtered_docs = [d for d in documents if getattr(d, "module_id", None) in allowed_ids]
 
-    unassigned_docs = [
-        d for d in documents
-        if not getattr(d, "module_id", None) or getattr(d, "module_id", None) not in module_ids
-    ]
+        # Attach docs to subtree
+        def _attach_docs(node, docs):
+            node.documents = [d for d in docs if getattr(d, "module_id", None) == node.id]
+            for child in node.children:
+                _attach_docs(child, docs)
+
+        _attach_docs(selected_mod, filtered_docs)
+        module_tree = [selected_mod]
+        unassigned_docs = []
+    else:
+        def _attach_docs(node, docs):
+            node.documents = [d for d in docs if getattr(d, "module_id", None) == node.id]
+            for child in node.children:
+                _attach_docs(child, docs)
+
+        for node in module_tree:
+            _attach_docs(node, documents)
+
+        unassigned_docs = [
+            d for d in documents
+            if not getattr(d, "module_id", None) or getattr(d, "module_id", None) not in module_ids
+        ]
 
     return render_template(
         "documents/index.html",
@@ -725,6 +824,7 @@ def index(project_id):
         module_tree=module_tree,
         modules_flat=modules_flat,
         unassigned_docs=unassigned_docs,
+        selected_module_id=selected_module_id,
         type_labels=DOCUMENT_TYPES,
         create_type_labels=CREATE_DOCUMENT_TYPES,
     )
@@ -742,9 +842,13 @@ def create(project_id, doc_type):
 
     modules = ModuleService.get_all_for_project(project_id)
 
+    if doc_type == "research" and request.method == "GET":
+        return redirect(url_for("documents.research_index", project_id=project_id))
+
     existing_user_story_doc = None
     if doc_type == "user_story":
-        existing_user_story_doc = _get_or_consolidate_user_story_document(project_id)
+        selected_module_id = _get_selected_module_id(project_id)
+        existing_user_story_doc = _get_or_consolidate_user_story_document(project_id, module_id=selected_module_id)
         if request.method == "GET":
             if existing_user_story_doc:
                 return redirect(url_for("documents.detail", project_id=project_id, id=existing_user_story_doc.id))
@@ -752,6 +856,7 @@ def create(project_id, doc_type):
                 project_id=project_id,
                 doc_type="user_story",
                 data=_normalize_user_story_data({}),
+                module_id=selected_module_id,
             )
             return redirect(url_for("documents.detail", project_id=project_id, id=doc.id))
 
@@ -759,6 +864,8 @@ def create(project_id, doc_type):
         data = _parse_document_form(doc_type, request.form, project)
         _apply_test_id_fields(request.form, data)
         module_id = request.form.get("module_id", "").strip() or None
+        if doc_type == "user_story" and module_id is None:
+            module_id = _get_selected_module_id(project_id)
         error = _validate_document_data(doc_type, data)
         if error:
             flash(error, "error")
@@ -784,12 +891,21 @@ def create(project_id, doc_type):
         flash(f"{DOCUMENT_TYPES[doc_type]} created.", "success")
         return redirect(url_for("documents.detail", project_id=project_id, id=doc.id))
 
+    extra = {}
+    if doc_type == "test_plan":
+        active_module_ids = _get_active_module_ids(project_id)
+        all_test_plans = DocumentService.get_all_for_project(project_id, doc_type="test_plan")
+        if active_module_ids is not None:
+            all_test_plans = [d for d in all_test_plans if getattr(d, "module_id", None) in active_module_ids]
+        extra["existing_test_plans"] = all_test_plans
+
     return render_template(
         TEMPLATE_MAP[doc_type],
         project=project,
         document=None,
         data=_normalize_user_story_data({}) if doc_type == "user_story" else {},
         modules=modules,
+        **extra,
         **_document_template_context(project),
     )
 
@@ -804,7 +920,10 @@ def detail(project_id, id):
         flash("Document not found.", "error")
         return redirect(url_for("documents.index", project_id=project_id))
     if doc.type == "user_story":
-        canonical_doc = _get_or_consolidate_user_story_document(project_id)
+        canonical_doc = _get_or_consolidate_user_story_document(
+            project_id,
+            module_id=getattr(doc, "module_id", None),
+        )
         if canonical_doc and canonical_doc.id != doc.id:
             return redirect(url_for("documents.detail", project_id=project_id, id=canonical_doc.id))
         doc = canonical_doc or doc
@@ -915,7 +1034,10 @@ def edit(project_id, id):
         flash("Document not found.", "error")
         return redirect(url_for("documents.index", project_id=project_id))
     if doc.type == "user_story":
-        canonical_doc = _get_or_consolidate_user_story_document(project_id)
+        canonical_doc = _get_or_consolidate_user_story_document(
+            project_id,
+            module_id=getattr(doc, "module_id", None),
+        )
         if canonical_doc and canonical_doc.id != doc.id:
             return redirect(url_for("documents.edit", project_id=project_id, id=canonical_doc.id))
         doc = canonical_doc or doc
@@ -938,6 +1060,11 @@ def edit(project_id, id):
                 selected_module_id=module_id or getattr(doc, "module_id", None),
                 **_document_template_context(project, data),
             )
+        # Preserve fields not present in the form (e.g. attachments)
+        existing_data = doc.data or {}
+        for key in existing_data:
+            if key not in data:
+                data[key] = existing_data[key]
         DocumentService.update(doc, data=data, module_id=module_id if module_id else "")
         flash(f"{DOCUMENT_TYPES[doc.type]} updated.", "success")
         return redirect(url_for("documents.detail", project_id=project_id, id=doc.id))
@@ -1097,3 +1224,175 @@ def delete_traceability_link(project_id, link_id):
     if at_id:
         return redirect(url_for("documents.detail", project_id=project_id, id=at_id))
     return redirect(url_for("documents.index", project_id=project_id))
+
+
+# --- Research ---
+
+@documents_bp.route("/projects/<project_id>/research")
+def research_index(project_id):
+    project = _get_project_or_redirect(project_id)
+    if not project:
+        return redirect(url_for("projects.index"))
+    active_module_ids = _get_active_module_ids(project_id)
+    research_docs = DocumentService.get_all_for_project(project_id, doc_type="research")
+    if active_module_ids is not None:
+        research_docs = [d for d in research_docs if getattr(d, "module_id", None) in active_module_ids]
+    modules = ModuleService.get_all_for_project(project_id)
+    return render_template(
+        "documents/research_index.html",
+        project=project,
+        research_docs=research_docs,
+        modules=modules,
+    )
+
+
+@documents_bp.route("/projects/<project_id>/research/new", methods=["POST"])
+def create_research(project_id):
+    project = _get_project_or_redirect(project_id)
+    if not project:
+        return redirect(url_for("projects.index"))
+
+    title = request.form.get("title", "").strip()
+    if not title:
+        flash("Title is required.", "error")
+        return redirect(url_for("documents.research_index", project_id=project_id))
+
+    data = {
+        "title": title,
+        "tags": request.form.get("tags", "").strip(),
+        "body": request.form.get("body", "").strip(),
+    }
+    module_id = request.form.get("module_id", "").strip() or None
+    doc = DocumentService.create(project_id=project_id, doc_type="research", data=data, module_id=module_id)
+
+    # Handle file uploads
+    files = request.files.getlist("attachments")
+    attachments = []
+    storage_dir = _research_storage_dir(doc.id)
+    for f in files:
+        if not f or not f.filename:
+            continue
+        filename = secure_filename(f.filename)
+        if not filename:
+            continue
+        stored_name = f"{uuid.uuid4().hex}_{filename}"
+        os.makedirs(storage_dir, exist_ok=True)
+        f.save(os.path.join(storage_dir, stored_name))
+        content_type = f.mimetype or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        attachments.append({
+            "id": uuid.uuid4().hex,
+            "original_filename": filename,
+            "storage_name": stored_name,
+            "content_type": content_type,
+        })
+    if attachments:
+        data["attachments"] = attachments
+        DocumentService.update(doc, data=data)
+
+    flash(f'Research document "{title}" created.', "success")
+    return redirect(url_for("documents.detail", project_id=project_id, id=doc.id))
+
+
+# --- Research attachments ---
+
+def _research_storage_dir(doc_id):
+    return os.path.join(current_app.config["RESEARCH_ATTACHMENTS_DIR"], doc_id)
+
+
+@documents_bp.route("/projects/<project_id>/documents/<id>/attachments", methods=["POST"])
+def upload_attachment(project_id, id):
+    project = _get_project_or_redirect(project_id)
+    if not project:
+        return redirect(url_for("projects.index"))
+    doc = DocumentService.get(id)
+    if not doc or doc.project_id != project_id or doc.type != "research":
+        flash("Research document not found.", "error")
+        return redirect(url_for("documents.index", project_id=project_id))
+
+    uploaded_file = request.files.get("attachment")
+    if not uploaded_file or not uploaded_file.filename:
+        flash("Choose a file to upload.", "error")
+        return redirect(url_for("documents.detail", project_id=project_id, id=id))
+
+    filename = secure_filename(uploaded_file.filename)
+    if not filename:
+        flash("Invalid filename.", "error")
+        return redirect(url_for("documents.detail", project_id=project_id, id=id))
+
+    stored_name = f"{uuid.uuid4().hex}_{filename}"
+    storage_dir = _research_storage_dir(doc.id)
+    os.makedirs(storage_dir, exist_ok=True)
+    uploaded_file.save(os.path.join(storage_dir, stored_name))
+
+    content_type = uploaded_file.mimetype or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    attachment = {
+        "id": uuid.uuid4().hex,
+        "original_filename": filename,
+        "storage_name": stored_name,
+        "content_type": content_type,
+    }
+
+    data = dict(doc.data or {})
+    attachments = list(data.get("attachments", []))
+    attachments.append(attachment)
+    data["attachments"] = attachments
+    DocumentService.update(doc, data=data)
+
+    flash(f'File "{filename}" uploaded.', "success")
+    return redirect(url_for("documents.detail", project_id=project_id, id=id))
+
+
+@documents_bp.route("/projects/<project_id>/documents/<id>/attachments/<attachment_id>")
+def download_attachment(project_id, id, attachment_id):
+    doc = DocumentService.get(id)
+    if not doc or doc.project_id != project_id or doc.type != "research":
+        flash("Research document not found.", "error")
+        return redirect(url_for("documents.index", project_id=project_id))
+
+    attachments = (doc.data or {}).get("attachments", [])
+    attachment = next((a for a in attachments if a["id"] == attachment_id), None)
+    if not attachment:
+        flash("Attachment not found.", "error")
+        return redirect(url_for("documents.detail", project_id=project_id, id=id))
+
+    file_path = os.path.join(_research_storage_dir(doc.id), attachment["storage_name"])
+    if not os.path.exists(file_path):
+        flash("Attachment file is missing on disk.", "error")
+        return redirect(url_for("documents.detail", project_id=project_id, id=id))
+
+    return send_file(
+        file_path,
+        mimetype=attachment.get("content_type", "application/octet-stream"),
+        as_attachment=False,
+        download_name=attachment.get("original_filename", "attachment"),
+    )
+
+
+@documents_bp.route("/projects/<project_id>/documents/<id>/attachments/<attachment_id>/delete", methods=["POST"])
+def delete_attachment(project_id, id, attachment_id):
+    project = _get_project_or_redirect(project_id)
+    if not project:
+        return redirect(url_for("projects.index"))
+    doc = DocumentService.get(id)
+    if not doc or doc.project_id != project_id or doc.type != "research":
+        flash("Research document not found.", "error")
+        return redirect(url_for("documents.index", project_id=project_id))
+
+    data = dict(doc.data or {})
+    attachments = list(data.get("attachments", []))
+    attachment = next((a for a in attachments if a["id"] == attachment_id), None)
+    if not attachment:
+        flash("Attachment not found.", "error")
+        return redirect(url_for("documents.detail", project_id=project_id, id=id))
+
+    # Remove file from disk
+    file_path = os.path.join(_research_storage_dir(doc.id), attachment["storage_name"])
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+    attachments = [a for a in attachments if a["id"] != attachment_id]
+    data["attachments"] = attachments
+    DocumentService.update(doc, data=data)
+
+    flash(f'Attachment "{attachment["original_filename"]}" deleted.', "success")
+    return redirect(url_for("documents.detail", project_id=project_id, id=id))

@@ -53,6 +53,85 @@ def _normalize_user_stories(data):
 
 class ExportService:
     @staticmethod
+    def export_diagram_json(project_id, diagram_id):
+        """Export a single diagram as a JSON-serializable dict."""
+        project = ProjectService.get(project_id)
+        if not project:
+            return None
+
+        diagram = DiagramService.get(diagram_id)
+        if not diagram or diagram.project_id != project_id:
+            return None
+
+        diagram_data = diagram.data or {}
+        modules = ModuleService.get_all_for_project(project_id)
+        module = next((m for m in modules if m.id == getattr(diagram, "module_id", None)), None)
+
+        return {
+            "project": {
+                "id": project.id,
+                "name": project.name,
+            },
+            "diagram": {
+                "id": diagram.id,
+                "project_id": diagram.project_id,
+                "module_id": getattr(diagram, "module_id", None),
+                "module_name": module.name if module else None,
+                "type": diagram.type,
+                "name": diagram.name,
+                "nodes": diagram_data.get("nodes", []),
+                "edges": diagram_data.get("edges", []),
+            },
+        }
+
+    @staticmethod
+    def export_diagram_markdown(project_id, diagram_id):
+        """Export a single diagram as Markdown."""
+        data = ExportService.export_diagram_json(project_id, diagram_id)
+        if data is None:
+            return None
+
+        project = data["project"]
+        diagram = data["diagram"]
+
+        lines = [
+            f"# {diagram['name']}",
+            "",
+            f"- **Project:** {project['name']}",
+            f"- **Type:** {diagram['type']}",
+        ]
+        if diagram.get("module_name"):
+            lines.append(f"- **Module:** {diagram['module_name']}")
+        lines.extend([
+            f"- **Nodes:** {len(diagram['nodes'])}",
+            f"- **Edges:** {len(diagram['edges'])}",
+            "",
+        ])
+
+        if diagram["nodes"]:
+            lines.append("## Nodes")
+            lines.append("")
+            for node in diagram["nodes"]:
+                label = (node.get("data") or {}).get("label", "")
+                lines.append(
+                    f"- `{node.get('id', '')}`: {node.get('type', '')} {label}".rstrip()
+                )
+            lines.append("")
+
+        if diagram["edges"]:
+            lines.append("## Edges")
+            lines.append("")
+            for edge in diagram["edges"]:
+                edge_label = edge.get("label")
+                label_suffix = f" ({edge_label})" if edge_label else ""
+                lines.append(
+                    f"- `{edge.get('id', '')}`: {edge.get('source', '')} -> {edge.get('target', '')}{label_suffix}"
+                )
+            lines.append("")
+
+        return "\n".join(lines).strip() + "\n"
+
+    @staticmethod
     def export_json(project_id):
         """Export all project artifacts as a single JSON-serializable dict."""
         project = ProjectService.get(project_id)
@@ -237,6 +316,7 @@ class ExportService:
             diagram_data = d.data or {}
             diagram_list.append({
                 "id": d.id,
+                "module_id": getattr(d, "module_id", None),
                 "type": d.type,
                 "name": d.name,
                 "nodes": diagram_data.get("nodes", []),

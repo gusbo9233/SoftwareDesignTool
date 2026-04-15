@@ -116,6 +116,28 @@
     </div>
 </div>
 
+<!-- Module Filter -->
+{% if modules_flat %}
+<div class="mb-6">
+    <form method="get" action="{{ url_for('documents.index', project_id=project.id) }}">
+        <div class="flex items-center gap-3">
+            <label for="module_id" class="font-label text-xs uppercase tracking-widest text-on-surface-variant">Filter by module</label>
+            <select name="module_id" id="module_id" onchange="this.form.submit()"
+                    class="bg-surface-container-low text-on-surface text-sm rounded-lg px-3 py-2 border border-outline-variant focus:border-primary focus:outline-none transition-colors">
+                <option value="">All modules</option>
+                {% for mod in modules_flat %}
+                <option value="{{ mod.id }}" {% if selected_module_id == mod.id %}selected{% endif %}>{{ mod.name }}</option>
+                {% endfor %}
+            </select>
+            {% if selected_module_id %}
+            <a href="{{ url_for('documents.index', project_id=project.id) }}"
+               class="text-xs text-on-surface-variant hover:text-primary transition-colors font-label">Clear filter</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+{% endif %}
+
 <!-- Create New Document -->
 <h2 class="text-xs font-label font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 flex items-center gap-3">
     <span class="h-px w-6 bg-outline-variant"></span>

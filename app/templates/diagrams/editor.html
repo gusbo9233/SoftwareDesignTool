@@ -16,11 +16,32 @@
     <h1>{{ diagram.name }}</h1>
     <div class="actions">
         <span class="doc-type-badge">{{ type_label }}</span>
+        <a href="{{ url_for('diagrams.export', project_id=project.id, id=diagram.id, format='markdown') }}" class="btn">
+            Export Markdown
+        </a>
+        <a href="{{ url_for('diagrams.export', project_id=project.id, id=diagram.id, format='json') }}" class="btn">
+            Export JSON
+        </a>
         <form method="POST" action="{{ url_for('diagrams.delete', project_id=project.id, id=diagram.id) }}" class="inline-form">
             <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this diagram?')">Delete</button>
         </form>
     </div>
 </div>
+
+{% if modules is defined and modules %}
+<div style="margin-bottom: 1rem;">
+    <form method="POST" action="{{ url_for('diagrams.update_module', project_id=project.id, id=diagram.id) }}" style="display: flex; align-items: center; gap: 0.75rem;">
+        <label for="module_id" class="font-label text-xs uppercase tracking-widest text-on-surface-variant" style="white-space:nowrap;">Module</label>
+        <select name="module_id" id="module_id" onchange="this.form.submit()"
+                class="bg-surface-container-low text-on-surface text-sm rounded-lg px-3 py-2 border border-outline-variant focus:border-primary focus:outline-none transition-colors">
+            <option value="">None (project-level)</option>
+            {% for m in modules %}
+            <option value="{{ m.id }}" {% if selected_module_id is defined and selected_module_id == m.id %}selected{% endif %}>{{ m.name }}</option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+{% endif %}
 
 <div
     id="diagram-editor"

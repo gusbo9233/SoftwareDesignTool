@@ -1,6 +1,7 @@
 import json
 import pytest
 from app.services.diagram_service import DiagramService
+from app.services.module_service import ModuleService
 
 
 class TestDiagramService:
@@ -45,6 +46,24 @@ class TestDiagramService:
         refreshed = DiagramService.get(d.id)
         assert refreshed.name == "New Name"
         assert len(refreshed.data["nodes"]) == 1
+
+    def test_create_diagram_with_module(self, project_id):
+        mod = ModuleService.create(project_id, "Auth")
+        d = DiagramService.create(
+            project_id=project_id,
+            diagram_type="architecture",
+            name="System Overview",
+            module_id=mod.id,
+        )
+        assert d.module_id == mod.id
+
+    def test_filter_diagrams_by_module(self, project_id):
+        mod = ModuleService.create(project_id, "Auth")
+        DiagramService.create(project_id=project_id, diagram_type="architecture", name="A", module_id=mod.id)
+        DiagramService.create(project_id=project_id, diagram_type="er", name="B")
+        diagrams = DiagramService.get_all_for_project(project_id, module_id=mod.id)
+        assert len(diagrams) == 1
+        assert diagrams[0].module_id == mod.id
 
     def test_delete_diagram(self, project_id):
         d = DiagramService.create(project_id=project_id, diagram_type="architecture", name="Del")
@@ -98,6 +117,38 @@ class TestDiagramRoutes:
         assert b"Edit Test" in response.data
         assert b"diagram-editor" in response.data
 
+    def test_diagrams_index_filters_by_module(self, client, project_id):
+        mod = ModuleService.create(project_id, "Auth")
+        DiagramService.create(project_id=project_id, diagram_type="architecture", name="Module Diagram", module_id=mod.id)
+        DiagramService.create(project_id=project_id, diagram_type="er", name="Project Diagram")
+
+        response = client.get(f"/projects/{project_id}/diagrams?module_id={mod.id}")
+        assert response.status_code == 200
+        assert b"Module Diagram" in response.data
+        assert b"Project Diagram" not in response.data
+
+    def test_update_diagram_module_route(self, client, project_id):
+        mod = ModuleService.create(project_id, "Auth")
+        d = DiagramService.create(project_id=project_id, diagram_type="architecture", name="Assign Me")
+
+        response = client.post(
+            f"/projects/{project_id}/diagrams/{d.id}/module",
+            data={"module_id": mod.id},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        refreshed = DiagramService.get(d.id)
+        assert refreshed.module_id == mod.id
+
+    def test_delete_module_unassigns_diagrams(self, project_id):
+        mod = ModuleService.create(project_id, "Auth")
+        d = DiagramService.create(project_id=project_id, diagram_type="architecture", name="Assigned", module_id=mod.id)
+
+        ModuleService.delete(mod)
+
+        refreshed = DiagramService.get(d.id)
+        assert refreshed.module_id is None
+
     def test_diagram_editor_not_found(self, client, project_id):
         response = client.get(f"/projects/{project_id}/diagrams/00000000-0000-0000-0000-000000000000", follow_redirects=True)
         assert response.status_code == 200
@@ -117,6 +168,7 @@ class TestDiagramAPI:
         assert response.status_code == 200
         data = response.get_json()
         assert data["name"] == "API Test"
+        assert data["module_id"] is None
         assert data["data"]["nodes"] == []
 
     def test_api_get_not_found(self, client):

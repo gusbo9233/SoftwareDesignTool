@@ -55,5 +55,5 @@
 </div>
 {% endif %}
 
-<div class="meta">Created {{ document.created_at.strftime('%Y-%m-%d %H:%M') }} &nbsp;·&nbsp; Updated {{ document.updated_at.strftime('%Y-%m-%d %H:%M') }}</div>
+<div class="meta">Created {{ document.created_at|format_datetime }} &nbsp;·&nbsp; Updated {{ document.updated_at|format_datetime }}</div>
 {% endblock %}

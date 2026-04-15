@@ -1,0 +1,135 @@
+{% extends "project_layout.html" %}
+{% set active_section = "documents" %}
+
+{% block title %}Research — {{ project.name }}{% endblock %}
+
+{% block breadcrumb_extra %}
+<span class="text-outline-variant">/</span>
+<a href="{{ url_for('documents.index', project_id=project.id) }}" class="hover:text-primary transition-colors">Documents</a>
+<span class="text-outline-variant">/</span>
+<span>Research</span>
+{% endblock %}
+
+{% block project_content %}
+
+<div class="flex items-center justify-between mb-8">
+    <div>
+        <span class="font-label text-[10px] uppercase tracking-widest text-primary mb-1.5 block">Documents / Research</span>
+        <h1 class="text-3xl font-extrabold tracking-tighter text-on-surface">Research Documents</h1>
+    </div>
+</div>
+
+<!-- Existing Research Documents -->
+{% if research_docs %}
+<h2 class="text-xs font-label font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 flex items-center gap-3">
+    <span class="h-px w-6 bg-outline-variant"></span>
+    Existing Documents
+    <span class="font-label text-[10px] bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-sm">{{ research_docs|length }}</span>
+</h2>
+
+<div class="bg-surface-container-low rounded-lg overflow-hidden mb-8">
+    <table class="w-full text-left border-collapse">
+        <thead>
+            <tr class="bg-surface-container-high">
+                <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Title</th>
+                <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Tags</th>
+                <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Attachments</th>
+                <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant">Updated</th>
+                <th class="px-5 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-variant"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for doc in research_docs %}
+            <tr class="hover:bg-surface-container-highest/50 transition-colors border-t" style="border-color: rgba(171,179,183,0.08);">
+                <td class="px-5 py-3">
+                    <a href="{{ url_for('documents.detail', project_id=project.id, id=doc.id) }}"
+                       class="flex items-center gap-2 text-sm font-medium text-on-surface hover:text-primary transition-colors">
+                        <span class="material-symbols-outlined text-sm text-secondary">science</span>
+                        {{ doc.data.get('title', 'Untitled') }}
+                    </a>
+                </td>
+                <td class="px-5 py-3">
+                    {% if doc.data.get('tags') %}
+                        {% for tag in doc.data.tags.split(',') %}
+                        <span class="font-label text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-sm bg-secondary/10 text-secondary">{{ tag.strip() }}</span>
+                        {% endfor %}
+                    {% endif %}
+                </td>
+                <td class="px-5 py-3 font-label text-xs text-on-surface-variant">
+                    {% set att_count = doc.data.get('attachments', [])|length %}
+                    {% if att_count %}
+                    <span class="flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm">attach_file</span>
+                        {{ att_count }}
+                    </span>
+                    {% endif %}
+                </td>
+                <td class="px-5 py-3 font-label text-[10px] text-on-surface-variant">
+                    {{ doc.updated_at[:16].replace('T', ' ') if doc.updated_at is string else doc.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                </td>
+                <td class="px-5 py-3">
+                    <div class="flex items-center gap-2">
+                        <a href="{{ url_for('documents.edit', project_id=project.id, id=doc.id) }}"
+                           class="text-on-surface-variant hover:text-primary transition-colors" title="Edit">
+                            <span class="material-symbols-outlined text-sm">edit</span>
+                        </a>
+                        <form method="POST" action="{{ url_for('documents.delete', project_id=project.id, id=doc.id) }}" class="inline-form">
+                            <button type="submit" class="text-on-surface-variant hover:text-error transition-colors" title="Delete"
+                                    onclick="return confirm('Delete this research document?')" style="background:none;border:none;cursor:pointer;padding:0;">
+                                <span class="material-symbols-outlined text-sm">delete</span>
+                            </button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="flex flex-col items-center justify-center py-12 text-center bg-surface-container-low rounded-lg mb-8">
+    <span class="material-symbols-outlined text-4xl text-outline mb-4">science</span>
+    <p class="text-on-surface-variant text-sm">No research documents yet.</p>
+</div>
+{% endif %}
+
+<!-- Create New -->
+<h2 class="text-xs font-label font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 flex items-center gap-3">
+    <span class="h-px w-6 bg-outline-variant"></span>
+    Create New Research Document
+</h2>
+
+<div class="bg-surface-container-low rounded-lg p-6">
+    <form method="POST" action="{{ url_for('documents.create_research', project_id=project.id) }}" enctype="multipart/form-data" class="form form-wide">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="title">Title</label>
+                <input type="text" id="title" name="title" placeholder="Document title" required>
+            </div>
+            <div class="form-group">
+                <label for="tags">Tags</label>
+                <input type="text" id="tags" name="tags" placeholder="Comma-separated tags">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="body">Content</label>
+            <textarea id="body" name="body" rows="8" placeholder="Research notes, findings, references..."></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Attachments</label>
+            <input type="file" name="attachments" multiple>
+            <small class="form-hint" style="margin-top:0.25rem;display:block;color:var(--on-surface-variant,#888);">You can select multiple files.</small>
+        </div>
+
+        {% include "documents/_module_picker.html" %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Create</button>
+            <a href="{{ url_for('documents.index', project_id=project.id) }}" class="btn">Cancel</a>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

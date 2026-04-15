@@ -24,27 +24,71 @@ def _module(d):
     return SimpleNamespace(**d)
 
 
+class ModuleStorageUnavailableError(RuntimeError):
+    """Raised when the backing modules table is not available in Supabase."""
+
+
+def _error_payload(exc):
+    payload = {}
+    if hasattr(exc, "code"):
+        payload["code"] = getattr(exc, "code", None)
+    if hasattr(exc, "message"):
+        payload["message"] = getattr(exc, "message", None)
+    if hasattr(exc, "details"):
+        payload["details"] = getattr(exc, "details", None)
+    if payload:
+        return payload
+    if hasattr(exc, "args") and exc.args:
+        first = exc.args[0]
+        if isinstance(first, dict):
+            return first
+    if isinstance(exc, dict):
+        return exc
+    return {}
+
+
+def _is_missing_modules_table_error(exc):
+    payload = _error_payload(exc)
+    message = str(payload.get("message", ""))
+    code = payload.get("code")
+    return code == "PGRST205" and "public.modules" in message
+
+
+def _missing_modules_table_message():
+    return "Modules are unavailable because the database schema is missing the modules table."
+
+
 class ModuleService:
     @staticmethod
     def get_all_for_project(project_id):
-        res = (
-            _app.supabase.table("modules")
-            .select("*")
-            .eq("project_id", project_id)
-            .order("position")
-            .execute()
-        )
+        try:
+            res = (
+                _app.supabase.table("modules")
+                .select("*")
+                .eq("project_id", project_id)
+                .order("position")
+                .execute()
+            )
+        except Exception as exc:
+            if _is_missing_modules_table_error(exc):
+                return []
+            raise
         return [_module(d) for d in res.data]
 
     @staticmethod
     def get(id):
-        res = (
-            _app.supabase.table("modules")
-            .select("*")
-            .eq("id", id)
-            .maybe_single()
-            .execute()
-        )
+        try:
+            res = (
+                _app.supabase.table("modules")
+                .select("*")
+                .eq("id", id)
+                .maybe_single()
+                .execute()
+            )
+        except Exception as exc:
+            if _is_missing_modules_table_error(exc):
+                return None
+            raise
         return _module(res.data) if res.data else None
 
     @staticmethod
@@ -72,7 +116,12 @@ class ModuleService:
             "parent_id": parent_id or None,
             "position": position,
         }
-        res = _app.supabase.table("modules").insert(payload).execute()
+        try:
+            res = _app.supabase.table("modules").insert(payload).execute()
+        except Exception as exc:
+            if _is_missing_modules_table_error(exc):
+                raise ModuleStorageUnavailableError(_missing_modules_table_message()) from exc
+            raise
         return _module(res.data[0])
 
     @staticmethod
@@ -87,12 +136,17 @@ class ModuleService:
         if position is not None:
             updates["position"] = position
         if updates:
-            res = (
-                _app.supabase.table("modules")
-                .update(updates)
-                .eq("id", module.id)
-                .execute()
-            )
+            try:
+                res = (
+                    _app.supabase.table("modules")
+                    .update(updates)
+                    .eq("id", module.id)
+                    .execute()
+                )
+            except Exception as exc:
+                if _is_missing_modules_table_error(exc):
+                    raise ModuleStorageUnavailableError(_missing_modules_table_message()) from exc
+                raise
             if res.data:
                 updated = _module(res.data[0])
                 for k, v in vars(updated).items():
@@ -101,23 +155,42 @@ class ModuleService:
 
     @staticmethod
     def delete(module):
-        """Delete a module. Documents belonging to it get module_id set to None."""
+        """Delete a module. Related documents and diagrams get module_id set to None."""
         from app.services.document_service import DocumentService
+        from app.services.diagram_service import DiagramService
         docs = DocumentService.get_all_for_project(module.project_id, module_id=module.id)
         for doc in docs:
             DocumentService.update(doc, module_id="")
+        diagrams = DiagramService.get_all_for_project(module.project_id, module_id=module.id)
+        for diagram in diagrams:
+            DiagramService.update(diagram, module_id="")
         # Re-parent children to this module's parent
-        children = (
-            _app.supabase.table("modules")
-            .select("*")
-            .eq("parent_id", module.id)
-            .execute()
-        )
+        try:
+            children = (
+                _app.supabase.table("modules")
+                .select("*")
+                .eq("parent_id", module.id)
+                .execute()
+            )
+        except Exception as exc:
+            if _is_missing_modules_table_error(exc):
+                raise ModuleStorageUnavailableError(_missing_modules_table_message()) from exc
+            raise
         for child_data in children.data:
-            _app.supabase.table("modules").update(
-                {"parent_id": module.parent_id}
-            ).eq("id", child_data["id"]).execute()
-        _app.supabase.table("modules").delete().eq("id", module.id).execute()
+            try:
+                _app.supabase.table("modules").update(
+                    {"parent_id": module.parent_id}
+                ).eq("id", child_data["id"]).execute()
+            except Exception as exc:
+                if _is_missing_modules_table_error(exc):
+                    raise ModuleStorageUnavailableError(_missing_modules_table_message()) from exc
+                raise
+        try:
+            _app.supabase.table("modules").delete().eq("id", module.id).execute()
+        except Exception as exc:
+            if _is_missing_modules_table_error(exc):
+                raise ModuleStorageUnavailableError(_missing_modules_table_message()) from exc
+            raise
 
     @staticmethod
     def count_documents(module_id, documents):

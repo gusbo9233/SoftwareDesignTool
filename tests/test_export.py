@@ -178,6 +178,23 @@ class TestExportServiceJSON:
         assert len(ep["parameters"]) == 1
         assert len(ep["status_codes"]) == 1
 
+    def test_single_diagram_json_export(self, project, project_id):
+        diagram = DiagramService.create(
+            project_id=project_id,
+            diagram_type="workflow",
+            name="Decision Flow",
+            data={
+                "nodes": [{"id": "1", "type": "workflowState", "data": {"label": "Decision"}}],
+                "edges": [{"id": "e1-2", "source": "1", "target": "2", "label": "Yes"}],
+            },
+        )
+
+        result = ExportService.export_diagram_json(project_id, diagram.id)
+
+        assert result["project"]["id"] == project.id
+        assert result["diagram"]["name"] == "Decision Flow"
+        assert result["diagram"]["edges"][0]["label"] == "Yes"
+
 
 class TestExportServiceMarkdown:
     def test_markdown_nonexistent(self):
@@ -234,6 +251,25 @@ class TestExportServiceMarkdown:
         assert "`GET /api/users`" in result
         assert "List all users" in result
 
+    def test_single_diagram_markdown_export(self, project_id):
+        diagram = DiagramService.create(
+            project_id=project_id,
+            diagram_type="architecture",
+            name="System Overview",
+            data={
+                "nodes": [{"id": "1", "type": "component", "data": {"label": "Frontend"}}],
+                "edges": [{"id": "e1-2", "source": "1", "target": "2", "label": "HTTP"}],
+            },
+        )
+
+        result = ExportService.export_diagram_markdown(project_id, diagram.id)
+
+        assert "# System Overview" in result
+        assert "## Nodes" in result
+        assert "Frontend" in result
+        assert "## Edges" in result
+        assert "HTTP" in result
+
 
 class TestExportRoute:
     def test_json_export_route(self, client, populated_project):
@@ -259,6 +295,25 @@ class TestExportRoute:
     def test_export_not_found(self, client):
         response = client.get("/api/projects/00000000-0000-0000-0000-000000000000/export")
         assert response.status_code == 404
+
+    def test_single_diagram_json_export_route(self, client, project_id):
+        diagram = DiagramService.create(project_id=project_id, diagram_type="architecture", name="Exportable Diagram")
+
+        response = client.get(f"/projects/{project_id}/diagrams/{diagram.id}/export?format=json")
+
+        assert response.status_code == 200
+        assert response.content_type.startswith("application/json")
+        data = json.loads(response.data)
+        assert data["diagram"]["name"] == "Exportable Diagram"
+
+    def test_single_diagram_markdown_export_route(self, client, project_id):
+        diagram = DiagramService.create(project_id=project_id, diagram_type="architecture", name="Markdown Diagram")
+
+        response = client.get(f"/projects/{project_id}/diagrams/{diagram.id}/export?format=markdown")
+
+        assert response.status_code == 200
+        assert response.content_type.startswith("text/markdown")
+        assert b"# Markdown Diagram" in response.data
 
     def test_export_button_on_project_page(self, client, project_id):
         response = client.get(f"/projects/{project_id}")

@@ -174,8 +174,8 @@ class TestProjectRoutes:
         finally:
             ProjectService.delete(created)
 
-    def test_existing_aspnet_template_project_auto_backfills_folder_structure(self, client):
-        project = ProjectService.create(name="Legacy Clean", template_key="aspnetcore_clean_architecture")
+    def test_existing_aspnet_template_project_auto_backfills_folder_structure(self, client, user):
+        project = ProjectService.create(name="Legacy Clean", template_key="aspnetcore_clean_architecture", user_id=user.id)
         try:
             DocumentService.create(
                 project_id=project.id,

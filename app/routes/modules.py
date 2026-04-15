@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 
 from app.services.project_service import ProjectService
-from app.services.module_service import ModuleService
+from app.services.module_service import ModuleService, ModuleStorageUnavailableError
 
 modules_bp = Blueprint("modules", __name__)
 
@@ -34,12 +34,16 @@ def create(project_id):
                 module=None,
                 all_modules=all_modules,
             )
-        ModuleService.create(
-            project_id=project_id,
-            name=name,
-            description=description,
-            parent_id=parent_id,
-        )
+        try:
+            ModuleService.create(
+                project_id=project_id,
+                name=name,
+                description=description,
+                parent_id=parent_id,
+            )
+        except ModuleStorageUnavailableError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("documents.index", project_id=project_id))
         flash(f'Module "{name}" created.', "success")
         return redirect(url_for("documents.index", project_id=project_id))
 
@@ -76,12 +80,16 @@ def edit(project_id, module_id):
                 module=module,
                 all_modules=all_modules,
             )
-        ModuleService.update(
-            module,
-            name=name,
-            description=description,
-            parent_id=parent_id if parent_id else "",
-        )
+        try:
+            ModuleService.update(
+                module,
+                name=name,
+                description=description,
+                parent_id=parent_id if parent_id else "",
+            )
+        except ModuleStorageUnavailableError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("documents.index", project_id=project_id))
         flash(f'Module "{name}" updated.', "success")
         return redirect(url_for("documents.index", project_id=project_id))
 
@@ -105,6 +113,10 @@ def delete(project_id, module_id):
         return redirect(url_for("documents.index", project_id=project_id))
 
     name = module.name
-    ModuleService.delete(module)
+    try:
+        ModuleService.delete(module)
+    except ModuleStorageUnavailableError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("documents.index", project_id=project_id))
     flash(f'Module "{name}" deleted. Its documents are now unassigned.', "success")
     return redirect(url_for("documents.index", project_id=project_id))
